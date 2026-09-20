@@ -256,6 +256,37 @@ async fn pi_agent_end_sets_idle_when_extension_payload_arrives() {
 }
 
 #[tokio::test]
+async fn cursor_stop_sets_idle_and_approval_stays_unknown() {
+    let harness = Harness::start().await;
+    harness.start_session("cursor");
+    let first = harness.session("cursor").await;
+    assert!(
+        harness
+            .hook_report("cursor", r#"{"hook_event_name":"beforeSubmitPrompt"}"#)
+            .status
+            .success()
+    );
+    let after_unknown = harness.session("cursor").await;
+    assert_eq!(after_unknown.status, Status::Running);
+    assert_eq!(after_unknown.pid, first.pid);
+    assert!(!harness.notify.exists());
+    assert!(
+        harness
+            .hook_report(
+                "cursor",
+                r#"{"hook_event_name":"stop","status":"completed"}"#
+            )
+            .status
+            .success()
+    );
+    assert_eq!(harness.session("cursor").await.status, Status::Idle);
+    assert_eq!(
+        std::fs::read_to_string(&harness.notify).unwrap(),
+        "cursor\tidle\n"
+    );
+}
+
+#[tokio::test]
 async fn broken_hook_leaves_unknown_and_keeps_the_child() {
     let harness = Harness::start().await;
     harness.start_session("claude");
@@ -303,6 +334,13 @@ fn snippets_are_merge_fragments() {
     let kiro: serde_json::Value =
         serde_json::from_str(include_str!("../../../contrib/hooks/kiro.hooks.json")).unwrap();
     assert_eq!(kiro["hooks"][0]["trigger"], "Agent Stop");
+    let cursor: serde_json::Value =
+        serde_json::from_str(include_str!("../../../contrib/hooks/cursor.hooks.json")).unwrap();
+    assert_eq!(cursor["version"], 1);
+    assert!(cursor["hooks"].get("stop").is_some());
+    assert!(cursor["hooks"].get("beforeSubmitPrompt").is_none());
+    assert!(cursor["hooks"].get("PermissionRequest").is_none());
+
     let pi = include_str!("../../../contrib/hooks/pi/sumika-report.ts");
     assert!(pi.contains("agent_end"));
     assert!(pi.contains("agent_settled"));

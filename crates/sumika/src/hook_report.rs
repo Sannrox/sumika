@@ -188,6 +188,25 @@ mod tests {
     }
 
     #[test]
+    fn cursor_stop_is_idle_and_approval_is_unknown() {
+        assert_eq!(
+            status_from_payload(&json!({
+                "hook_event_name": "stop",
+                "status": "completed"
+            })),
+            Some(Status::Idle)
+        );
+        assert_eq!(
+            status_from_payload(&json!({"hook_event_name": "beforeSubmitPrompt"})),
+            None
+        );
+        assert_eq!(
+            status_from_payload(&json!({"hook_event_name": "preToolUse"})),
+            None
+        );
+    }
+
+    #[test]
     fn garbage_is_ignored() {
         assert_eq!(status_from_payload(&json!({"nope": true})), None);
     }
