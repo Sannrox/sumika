@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bare `sumika` opens a full-screen picker (`j`/`k`/Enter/`q`, configured `key`
+  jumps, `r` restarts a dead row from config). Children stay running when the
+  picker exits.
 - Named session config (`~/.config/sumika/config.toml`, override `--config` or
   `SUMIKA_CONFIG`). `sumika start <name>` uses `{name, argv, cwd?, key?}` when
   argv is omitted; `sumika start --all` starts every configured session. Live

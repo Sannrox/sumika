@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt;
 use std::fs;
@@ -93,6 +93,22 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
 impl Config {
     pub fn lookup(&self, name: &str) -> Option<&SessionSpec> {
         self.sessions.iter().find(|session| session.name == name)
+    }
+
+    pub fn jump_keys(&self) -> HashMap<char, String> {
+        let mut jumps = HashMap::new();
+        for session in &self.sessions {
+            let Some(key) = session.key.as_deref() else {
+                continue;
+            };
+            let mut chars = key.chars();
+            if let (Some(c), None) = (chars.next(), chars.next())
+                && !jumps.contains_key(&c)
+            {
+                jumps.insert(c, session.name.clone());
+            }
+        }
+        jumps
     }
 
     fn validate(&self) -> Result<(), ConfigError> {
