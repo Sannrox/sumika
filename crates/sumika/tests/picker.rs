@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-use sumika::picker::{Action, Input, Picker};
+use sumika::picker::{Action, Input, Picker, attention_line};
 use sumika_ctl::Client;
 use sumika_protocol::{Request, Status};
 use tempfile::TempDir;
@@ -225,4 +225,51 @@ async fn picker_r_starts_dead_kiro_from_config() {
     let kiro = wait_status(&harness.client, "kiro", Status::Running).await;
     assert_eq!(kiro.argv, ["cat"]);
     assert_eq!(std::path::Path::new(&kiro.cwd), harness.kiro_cwd.as_path());
+}
+
+#[tokio::test]
+async fn report_blocked_sorts_to_top_of_picker_without_desktop_notify() {
+    let harness = Harness::start().await;
+    assert!(
+        harness
+            .cmd()
+            .args(["start", "claude", "--", "cat"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(
+        harness
+            .cmd()
+            .args(["start", "kiro", "--", "cat"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(
+        harness
+            .cmd()
+            .args(["report", "kiro", "blocked"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    let sessions = harness
+        .client
+        .rpc(&Request::List)
+        .await
+        .unwrap()
+        .sessions
+        .unwrap();
+    let picker = Picker::new(sessions, HashMap::new());
+    assert_eq!(picker.rows()[0].name, "kiro");
+    assert_eq!(picker.rows()[0].status, Status::Blocked);
+    assert!(
+        attention_line(picker.rows()).starts_with("kiro !"),
+        "{}",
+        attention_line(picker.rows())
+    );
 }

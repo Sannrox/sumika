@@ -24,7 +24,7 @@ use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph};
 use sumika::chord::{Chord, Feed, Matcher, format_chord};
 use sumika::config::{SessionSpec, load, resolve_config_path};
 use sumika::copy::{self, CopyMode};
-use sumika::picker::{Action, Input, Picker, glyph, help_lines};
+use sumika::picker::{Action, Input, Picker, attention_line, glyph, help_lines};
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
     EXIT_OK, EXIT_STOLEN, EXIT_UNREACHABLE, EXIT_USAGE, Request, Response, Status,
@@ -481,10 +481,16 @@ async fn run_picker_screen(
                 .collect();
             let mut state = ListState::default()
                 .with_selected((!picker.rows().is_empty()).then_some(picker.selected_index()));
-            let footer = if picker.leader_pending() {
+            let attention = attention_line(picker.rows());
+            let shortcuts = if picker.leader_pending() {
                 " spc-key "
             } else {
                 " spc-key jump  C-b q leave  ? help "
+            };
+            let footer = if attention.is_empty() {
+                shortcuts.to_string()
+            } else {
+                format!(" {attention} ")
             };
             frame.render_stateful_widget(
                 List::new(items)
