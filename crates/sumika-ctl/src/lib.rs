@@ -29,6 +29,7 @@ impl ClientError {
     }
 }
 
+#[derive(Clone)]
 pub struct Client {
     sock: PathBuf,
 }
@@ -97,7 +98,7 @@ async fn read_response(stream: &mut UnixStream) -> Result<Response, ClientError>
             break;
         }
         buf.push(byte[0]);
-        if buf.len() > 1024 * 1024 {
+        if buf.len() > 8 * 1024 * 1024 {
             return Err(ClientError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "response line too long",

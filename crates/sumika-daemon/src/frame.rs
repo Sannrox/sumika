@@ -51,7 +51,6 @@ impl Frame {
         parser.parse(bytes, |action| apply(surface, lines, cap, action));
     }
 
-    #[cfg(test)]
     pub fn snapshot(&self) -> Vec<u8> {
         let inner = self.inner.lock().expect("frame");
         snapshot_bytes(&inner.surface)
@@ -61,6 +60,18 @@ impl Frame {
     pub fn history(&self) -> Vec<u8> {
         let inner = self.inner.lock().expect("frame");
         history_bytes(&inner.lines)
+    }
+
+    pub fn copy_lines(&self) -> Vec<String> {
+        let inner = self.inner.lock().expect("frame");
+        let mut out: Vec<String> = inner.lines.iter().cloned().collect();
+        for row in inner.surface.screen_lines() {
+            out.push(row.as_str().trim_end().to_string());
+        }
+        while out.last().is_some_and(|line| line.is_empty()) {
+            out.pop();
+        }
+        out
     }
 
     pub fn replay(&self) -> Vec<u8> {
@@ -140,7 +151,9 @@ fn snapshot_bytes(surface: &Surface) -> Vec<u8> {
         return Vec::new();
     }
     let mut out = Vec::from(&b"\x1b[H\x1b[J"[..]);
-    out.extend_from_slice(text.as_bytes());
+    out.extend_from_slice(text.replace('\n', "\r\n").as_bytes());
+    let (x, y) = surface.cursor_position();
+    out.extend_from_slice(format!("\x1b[{};{}H", y + 1, x + 1).as_bytes());
     out
 }
 
@@ -310,6 +323,20 @@ mod tests {
             expected.extend_from_slice(b"\r\n");
         }
         assert_eq!(&replay[..idx], expected.as_slice());
+    }
+
+    #[test]
+    fn copy_lines_include_evicted_and_viewport() {
+        let frame = Frame::new(80, 24);
+        frame.feed(b"UNIQUE-COPY-LINE\r\n");
+        for i in 0..40 {
+            frame.feed(format!("pad-{i}\r\n").as_bytes());
+        }
+        let lines = frame.copy_lines();
+        assert!(
+            lines.iter().any(|line| line.contains("UNIQUE-COPY-LINE")),
+            "{lines:?}"
+        );
     }
 
     #[test]

@@ -34,6 +34,10 @@
       "description": "A vendor hook snippet that emits a Report from a Stop or permission event. It merges into existing settings. It does not parse the PTY. A broken payload does not kill the child."
     },
     {
+      "name": "CopyMode",
+      "description": "A client overlay over a Session's bounded line ring. Yank copies a line to the system clipboard. Attach is a raw PTY when CopyMode is off. Not a pane, not a screen scrape, not an agent TUI."
+    },
+    {
       "name": "ResumeHint",
       "description": "Optional opaque vendor chat identity stored on a Session only when a confirmed Stop payload provides an id and a confirmed resume-by-id flag exists. Not a Session. Sumika never invents it."
     }
@@ -79,6 +83,12 @@
       "name": "starts_as",
       "description": "A ConfiguredSession starts as a Session of the same name. The daemon owns the process; the config is a client-side recipe.",
       "domain": "ConfiguredSession",
+      "range": "Session"
+    },
+    {
+      "name": "inspects",
+      "description": "CopyMode inspects a Session's line ring. It does not parse the PTY or share attach.",
+      "domain": "CopyMode",
       "range": "Session"
     },
     {
@@ -189,6 +199,18 @@
       "subject": "emits",
       "source": "sumika",
       "locator": "contrib/hooks/README.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "CopyMode",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "inspects",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
       "confidence": 1.0
     }
   ]

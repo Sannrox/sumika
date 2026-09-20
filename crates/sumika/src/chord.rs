@@ -2,6 +2,7 @@
 pub struct Chord {
     pub first: u8,
     pub second: u8,
+    pub copy: u8,
 }
 
 impl Default for Chord {
@@ -9,6 +10,7 @@ impl Default for Chord {
         Self {
             first: ctrl('\\'),
             second: ctrl('b'),
+            copy: b'y',
         }
     }
 }
@@ -21,6 +23,7 @@ const fn ctrl(c: char) -> u8 {
 pub enum Feed {
     Forward,
     Detach,
+    Copy,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +46,9 @@ impl Matcher {
                 self.pending = false;
                 if b == self.chord.second {
                     return Feed::Detach;
+                }
+                if b == self.chord.copy {
+                    return Feed::Copy;
                 }
                 out.push(self.chord.first);
             }
@@ -85,6 +91,7 @@ pub fn parse_chord(keys: &[String]) -> Result<Chord, String> {
     Ok(Chord {
         first: parse_key(&keys[0])?,
         second: parse_key(&keys[1])?,
+        copy: b'y',
     })
 }
 
@@ -145,5 +152,13 @@ mod tests {
         let mut out = Vec::new();
         assert_eq!(matcher.feed(&[0x1c, b'x'], &mut out), Feed::Forward);
         assert_eq!(out, [0x1c, b'x']);
+    }
+
+    #[test]
+    fn prefix_then_y_is_copy_mode() {
+        let mut matcher = Matcher::new(Chord::default());
+        let mut out = Vec::new();
+        assert_eq!(matcher.feed(&[0x1c, b'y'], &mut out), Feed::Copy);
+        assert!(out.is_empty());
     }
 }

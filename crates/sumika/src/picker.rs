@@ -141,6 +141,7 @@ pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
         "r       restart dead row".into(),
         "?       toggle this help".into(),
         format!("{detach:<8} detach (while attached)"),
+        "C-\\ y   copy mode (while attached)".into(),
         "! · … ? ✗   blocked idle running unknown dead".into(),
     ];
     let mut keys: Vec<_> = jumps.iter().collect();
