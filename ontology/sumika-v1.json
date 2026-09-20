@@ -16,6 +16,10 @@
     {
       "name": "Report",
       "description": "A hook-originated attention signal for a Session: idle, blocked, or running. Absence is unknown. Not a screen scrape."
+    },
+    {
+      "name": "ResumeHint",
+      "description": "Optional opaque vendor chat identity stored on a Session only when a confirmed Stop payload provides an id and a confirmed resume-by-id flag exists. Not a Session. Sumika never invents it."
     }
   ],
   "relations": [
@@ -36,6 +40,12 @@
       "description": "A Report updates a Session's attention status. It does not parse the PTY.",
       "domain": "Report",
       "range": "Session"
+    },
+    {
+      "name": "optionally_stores",
+      "description": "A Session may store one ResumeHint. The hint is not the Session. Absence means restart argv only.",
+      "domain": "Session",
+      "range": "ResumeHint"
     }
   ],
   "provenance": [
@@ -79,6 +89,18 @@
       "subject": "updates",
       "source": "sumika",
       "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "ResumeHint",
+      "source": "sumika",
+      "locator": "docs/decisions/0002-vendor-resume-flags.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "optionally_stores",
+      "source": "sumika",
+      "locator": "docs/decisions/0002-vendor-resume-flags.md",
       "confidence": 1.0
     }
   ]
