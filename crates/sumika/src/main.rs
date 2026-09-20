@@ -67,11 +67,16 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
+    let explicit_sock = cli.sock.is_some();
     let sock = cli.sock.unwrap_or_else(default_socket_path);
     match cli.command {
         Some(Command::Daemon) => match run_daemon(sock).await {
@@ -81,12 +86,22 @@ async fn main() -> ExitCode {
                 ExitCode::from(EXIT_USAGE as u8)
             }
         },
+        Some(Command::Doctor { json }) => {
+            let client = Client::new(sock);
+            ExitCode::from(run_doctor(client, cli.config, json).await as u8)
+        }
         Some(other) => {
             let client = Client::new(sock);
+            if !explicit_sock && std::env::var_os("SUMIKA_SOCK").is_none() {
+                ensure_daemon(&client).await;
+            }
             ExitCode::from(run_client(client, cli.config, other).await as u8)
         }
         None => {
             let client = Client::new(sock);
+            if !explicit_sock && std::env::var_os("SUMIKA_SOCK").is_none() {
+                ensure_daemon(&client).await;
+            }
             ExitCode::from(run_picker(client, cli.config).await as u8)
         }
     }
@@ -118,6 +133,80 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
+        Command::Doctor { .. } => unreachable!(),
+    }
+}
+
+async fn ensure_daemon(client: &Client) {
+    if client.rpc(&Request::Ping).await.is_ok() {
+        return;
+    }
+    let Ok(bin) = std::env::current_exe() else {
+        return;
+    };
+    let Ok(plist) = sumika::service::install_launchd(&bin) else {
+        return;
+    };
+    let _ = sumika::service::bootstrap_launchd(&plist);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    while tokio::time::Instant::now() < deadline {
+        if client.rpc(&Request::Ping).await.is_ok() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+async fn run_doctor(client: Client, config: Option<PathBuf>, json: bool) -> i32 {
+    let reachable = client.rpc(&Request::Ping).await.is_ok();
+    let sessions = if reachable {
+        client
+            .rpc(&Request::List)
+            .await
+            .ok()
+            .and_then(|response| response.sessions)
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let report = sumika::service::DoctorReport::from_parts(
+        client.sock_path().to_path_buf(),
+        resolve_config_path(config),
+        reachable,
+        sessions,
+    );
+    if json {
+        match serde_json::to_string_pretty(&report) {
+            Ok(body) => println!("{body}"),
+            Err(err) => {
+                eprintln!("{err}");
+                return EXIT_USAGE;
+            }
+        }
+    } else {
+        println!("socket\t{}", report.socket);
+        println!("reachable\t{}", report.reachable);
+        match report.launchd_loaded {
+            Some(loaded) => println!("launchd\t{loaded}"),
+            None => println!("launchd\t-"),
+        }
+        println!("config\t{}", report.config);
+        for session in &report.sessions {
+            println!(
+                "session\t{}\t{}\t{}",
+                session.name,
+                session.status,
+                session
+                    .pid
+                    .map(|pid| pid.to_string())
+                    .unwrap_or_else(|| "-".into())
+            );
+        }
+    }
+    if report.reachable {
+        EXIT_OK
+    } else {
+        EXIT_UNREACHABLE
     }
 }
 

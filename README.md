@@ -124,6 +124,17 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `list [--json]` | List sessions |
 | `attach NAME` | Exclusive attach (steals) |
 | `kill NAME [--force]` | Kill a session |
+| `doctor [--json]` | Socket, reachability, launchd, config, session pids |
+
+On macOS the daily-driver owner is a launchd user agent
+(`contrib/launchd/com.sumika.daemon.plist`). If the default socket is missing,
+`sumika` installs and bootstraps that agent so the daemon is not a child of the
+TUI. `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.sumika.daemon.plist`
+is the one-shot install. A systemd `--user` unit ships in
+`contrib/systemd/sumika.service` but is not the daily-driver claim.
+
+`doctor` is non-zero when the daemon is unreachable. It never prints PTY
+contents.
 
 `start` takes `--cwd DIR`. Without it, the child's cwd is the config `cwd` if
 present, otherwise the client's current directory. Flags override config.

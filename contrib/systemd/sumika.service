@@ -1,0 +1,11 @@
+[Unit]
+Description=sumika PTY supervisor
+Documentation=https://github.com/Sannrox/sumika
+
+[Service]
+Type=simple
+ExecStart=sumika daemon
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
