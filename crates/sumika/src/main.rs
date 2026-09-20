@@ -75,6 +75,8 @@ enum Command {
         name: String,
         status: ReportStatus,
     },
+    /// Map a vendor hook payload on stdin to `report`. Always exits 0.
+    HookReport,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -182,7 +184,27 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             )
             .await
         }
+        Command::HookReport => hook_report(&client).await,
     }
+}
+
+async fn hook_report(client: &Client) -> i32 {
+    let mut body = String::new();
+    let _ = io::stdin().read_to_string(&mut body);
+    let Ok(payload) = serde_json::from_str::<serde_json::Value>(body.trim()) else {
+        return EXIT_OK;
+    };
+    let Some(status) = sumika::hook_report::status_from_payload(&payload) else {
+        return EXIT_OK;
+    };
+    let Some(name) = std::env::var("SUMIKA_SESSION")
+        .ok()
+        .filter(|name| !name.is_empty())
+    else {
+        return EXIT_OK;
+    };
+    let _ = client.rpc(&Request::Report { name, status }).await;
+    EXIT_OK
 }
 
 async fn ensure_daemon(client: &Client) {

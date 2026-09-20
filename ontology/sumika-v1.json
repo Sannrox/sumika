@@ -30,6 +30,10 @@
       "description": "A hook-originated attention signal for a Session: idle, blocked, or running. Absence is unknown. Not a screen scrape."
     },
     {
+      "name": "Adapter",
+      "description": "A vendor hook snippet that emits a Report from a Stop or permission event. It merges into existing settings. It does not parse the PTY. A broken payload does not kill the child."
+    },
+    {
       "name": "ResumeHint",
       "description": "Optional opaque vendor chat identity stored on a Session only when a confirmed Stop payload provides an id and a confirmed resume-by-id flag exists. Not a Session. Sumika never invents it."
     }
@@ -58,6 +62,12 @@
       "description": "A Report updates a Session's attention status. It does not parse the PTY.",
       "domain": "Report",
       "range": "Session"
+    },
+    {
+      "name": "emits",
+      "description": "An Adapter emits a Report for a Session named by SUMIKA_SESSION. Unknown events emit nothing.",
+      "domain": "Adapter",
+      "range": "Report"
     },
     {
       "name": "lists",
@@ -167,6 +177,18 @@
       "subject": "optionally_stores",
       "source": "sumika",
       "locator": "docs/decisions/0002-vendor-resume-flags.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Adapter",
+      "source": "sumika",
+      "locator": "contrib/hooks/README.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "emits",
+      "source": "sumika",
+      "locator": "contrib/hooks/README.md",
       "confidence": 1.0
     }
   ]

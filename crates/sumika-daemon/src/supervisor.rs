@@ -308,6 +308,7 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
         cmd.arg(arg);
     }
     cmd.cwd(&cwd);
+    cmd.env("SUMIKA_SESSION", &name);
     let child = pair.slave.spawn_command(cmd)?;
     let pid = child.process_id().unwrap_or(0);
     let reader = pair.master.try_clone_reader()?;

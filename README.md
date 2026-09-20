@@ -136,10 +136,17 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `kill NAME [--force]` | Kill a session |
 | `doctor [--json]` | Socket, reachability, launchd, config, session pids |
 | `report NAME idle\|blocked\|running` | Hook attention status |
+| `hook-report` | Map a vendor hook payload on stdin to `report` (fail-open) |
 
 `sumika report` stores hook status on the session. If that session is not the
 focused attach, sumika fires a macOS notification with the name and status —
 never PTY contents. Absence of a report is `unknown`. Adapters fail open.
+
+Claude and Codex adapters live in `contrib/hooks/`. Merge those snippets into
+existing vendor settings; do not replace unrelated hooks. The child inherits
+`SUMIKA_SESSION`. `sumika hook-report` maps Stop to `idle` and permission /
+approval events to `blocked`, then calls `report`. Unknown payloads and
+missing names exit 0 and leave status unchanged.
 
 On macOS the daily-driver owner is a launchd user agent
 (`contrib/launchd/com.sumika.daemon.plist`). If the default socket is missing,

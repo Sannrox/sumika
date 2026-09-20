@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Claude and Codex report adapters (`contrib/hooks/`, `sumika hook-report`).
+  Merge into existing vendor settings. Stop → idle; permission/approval →
+  blocked. Broken payloads leave status unchanged and keep the child.
 - Picker glyphs from hook status: `!` blocked, `·` idle, `…` running,
   `?` unknown, `✗` dead.
 - Last-attached name under the XDG state dir. `sumika attach` with no name
