@@ -34,7 +34,9 @@ allow = [
   "Apache-2.0 WITH LLVM-exception",
   "CDLA-Permissive-2.0",
 ]
-exceptions = []
+exceptions = [
+  { name = "terminfo", allow = ["WTFPL"] },
+]
 
 [bans]
 multiple-versions = "warn"
