@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cursor CLI sample session (`cursor-agent`) and report adapter
+  (`contrib/hooks/cursor.hooks.json`). `stop` → idle. Approval stays
+  unknown. `agent` on PATH may be Grok; prefer `cursor-agent`.
 - Persist `resume_hint` from confirmed Stop payloads (`claude`, `grok`,
   `codex`) and pass the documented flag on restart of a dead session.
   `kiro-cli`, `pi`, and unknown vendors keep argv unchanged.

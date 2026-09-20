@@ -45,6 +45,19 @@ kiro-cli agent hooks. IDE: merge the `Agent Stop` hook from `kiro.hooks.json`
 into `.kiro/hooks/` without removing other files. There is no approval
 snippet; Kiro has no documented approval event.
 
+### Cursor
+
+Merge `cursor.hooks.json` into `~/.cursor/hooks.json` (or the project
+`.cursor/hooks.json`). Keep `"version": 1`. Add the `stop` group only. Do
+not add `beforeSubmitPrompt`. Cursor has no documented CLI
+permission/approval hook, so approval stays unknown.
+
+The documented command is `agent`. That name collides with Grok's `agent` on
+PATH. Sample config uses `cursor-agent` (Cursor's installer symlink) so
+`start cursor` does not spawn Grok. If `agent` on PATH is Cursor, `argv =
+["agent"]` is fine. Do not use Grok's `~/.grok/bin/agent`. Sumika does not
+invent `--kind`. Restart is argv only; do not pass Cursor resume flags.
+
 ### Pi
 
 Copy `pi/sumika-report.ts` into `~/.pi/agent/extensions/` (or the project

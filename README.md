@@ -114,10 +114,20 @@ key = "p"
 name = "codex"
 argv = ["codex"]
 key = "x"
+
+[[sessions]]
+name = "cursor"
+argv = ["cursor-agent"]
+key = "a"
 ```
 
+Cursor's documented command is `agent`, which collides with Grok's `agent` on
+PATH. The sample uses `cursor-agent` (the installer symlink). If `agent` on
+PATH is Cursor, `argv = ["agent"]` is fine. Do not point argv at Grok's
+`~/.grok/bin/agent`.
+
 `key` is a one-character jump in the picker after Space (`spc` then `c` / `g` /
-`k` / `p` / `x` in the sample). Bare `j`/`k` always move.
+`k` / `p` / `x` / `a` in the sample). Bare `j`/`k` always move.
 
 ## CLI
 
@@ -159,7 +169,8 @@ Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
 vendor settings; do not replace unrelated hooks. The child inherits
 `SUMIKA_SESSION`. `sumika hook-report` maps Stop / turn-done to `idle` and
 permission / approval events to `blocked`, then calls `report`. Kiro has no
-approval event. Pi idle needs the in-tree extension; Pi blocked needs
+approval event. Cursor `stop` is idle; Cursor has no documented approval
+hook. Pi idle needs the in-tree extension; Pi blocked needs
 `permissions:ask`. Unknown payloads and missing names exit 0 and leave
 status unchanged.
 
