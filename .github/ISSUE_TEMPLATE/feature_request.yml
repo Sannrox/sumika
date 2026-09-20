@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a focused capability or improvement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sumika is not a multiplexer. Requests for panes, splits, shared attach,
+        or screen scraping will be closed. See VISION.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operator problem needs to be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior rather than only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: What related behavior is intentionally outside this request?
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Primary area
+      options:
+        - Daemon / PTY
+        - Attach / steal / detach
+        - CLI
+        - Hooks / report
+        - Documentation
+        - Unsure
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: This does not add panes, shared attach, or screen scraping.
+          required: true

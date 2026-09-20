@@ -1,0 +1,33 @@
+[package]
+name = "sumika"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+readme = "../../README.md"
+description = "Session habitat for CLI agents"
+keywords = ["pty", "terminal", "session", "cli", "agents"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "sumika"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+crossterm.workspace = true
+sumika-ctl.workspace = true
+sumika-daemon.workspace = true
+serde_json.workspace = true
+sumika-protocol.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+libc.workspace = true
+tempfile = "3"
+tokio.workspace = true

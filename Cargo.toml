@@ -1,0 +1,33 @@
+[workspace]
+members = [
+    "crates/sumika-protocol",
+    "crates/sumika-daemon",
+    "crates/sumika-ctl",
+    "crates/sumika",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+license = "Apache-2.0"
+repository = "https://github.com/Sannrox/sumika"
+homepage = "https://github.com/Sannrox/sumika"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+crossterm = "0.28"
+libc = "0.2"
+portable-pty = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "io-std", "sync", "signal", "time", "process", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sumika-protocol = { path = "crates/sumika-protocol" }
+sumika-daemon = { path = "crates/sumika-daemon" }
+sumika-ctl = { path = "crates/sumika-ctl" }

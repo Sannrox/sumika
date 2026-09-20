@@ -1,0 +1,18 @@
+[package]
+name = "sumika-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "PTY supervisor for sumika sessions"
+
+[dependencies]
+anyhow.workspace = true
+libc.workspace = true
+portable-pty.workspace = true
+sumika-protocol.workspace = true
+tokio.workspace = true
+tracing.workspace = true

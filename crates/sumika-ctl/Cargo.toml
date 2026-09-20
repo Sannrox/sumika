@@ -1,0 +1,15 @@
+[package]
+name = "sumika-ctl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "Unix-socket client for sumika"
+
+[dependencies]
+sumika-protocol.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

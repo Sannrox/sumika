@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "classes": [
+    {
+      "name": "Sumika",
+      "description": "The habitat: a local daemon and CLI that own interactive PTY sessions so they outlive the terminal window. Ghostty is a client, not the process owner."
+    },
+    {
+      "name": "Session",
+      "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. Not a pane, tab, kind, or headless run."
+    },
+    {
+      "name": "Attach",
+      "description": "The exclusive focused client of one Session. Bytes are a raw PTY. A second Attach steals. Detach leaves the child."
+    },
+    {
+      "name": "Report",
+      "description": "A hook-originated attention signal for a Session: idle, blocked, or running. Absence is unknown. Not a screen scrape."
+    }
+  ],
+  "relations": [
+    {
+      "name": "runs_in",
+      "description": "A Session lives in Sumika. Sumika owns the process; the terminal does not.",
+      "domain": "Session",
+      "range": "Sumika"
+    },
+    {
+      "name": "focuses",
+      "description": "An Attach is the exclusive focused client of one Session. A new Attach steals.",
+      "domain": "Attach",
+      "range": "Session"
+    },
+    {
+      "name": "updates",
+      "description": "A Report updates a Session's attention status. It does not parse the PTY.",
+      "domain": "Report",
+      "range": "Session"
+    }
+  ],
+  "provenance": [
+    {
+      "subject": "Sumika",
+      "source": "sumika",
+      "locator": "VISION.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Session",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Attach",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Report",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "runs_in",
+      "source": "sumika",
+      "locator": "docs/decisions/0001-week0.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "focuses",
+      "source": "sumika",
+      "locator": "docs/decisions/0001-week0.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "updates",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    }
+  ]
+}
