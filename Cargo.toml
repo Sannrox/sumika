@@ -19,7 +19,7 @@ publish = false
 [workspace.dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
-crossterm = "0.28"
+crossterm = "0.29"
 libc = "0.2"
 portable-pty = "0.9"
 serde = { version = "1", features = ["derive"] }
