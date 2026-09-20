@@ -134,6 +134,11 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `attach NAME` | Exclusive attach (steals) |
 | `kill NAME [--force]` | Kill a session |
 | `doctor [--json]` | Socket, reachability, launchd, config, session pids |
+| `report NAME idle\|blocked\|running` | Hook attention status |
+
+`sumika report` stores hook status on the session. If that session is not the
+focused attach, sumika fires a macOS notification with the name and status —
+never PTY contents. Absence of a report is `unknown`. Adapters fail open.
 
 On macOS the daily-driver owner is a launchd user agent
 (`contrib/launchd/com.sumika.daemon.plist`). If the default socket is missing,

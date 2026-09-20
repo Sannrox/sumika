@@ -56,6 +56,10 @@ pub enum Request {
         #[serde(default)]
         force: bool,
     },
+    Report {
+        name: String,
+        status: Status,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,6 +278,18 @@ mod tests {
         assert_eq!(value["name"], "demo");
         assert_eq!(value["argv"][0], "bash");
         assert!(value.get("cwd").is_none());
+    }
+
+    #[test]
+    fn report_request_json_shape() {
+        let req = Request::Report {
+            name: "kiro".into(),
+            status: Status::Idle,
+        };
+        let value = serde_json::to_value(&req).unwrap();
+        assert_eq!(value["op"], "report");
+        assert_eq!(value["name"], "kiro");
+        assert_eq!(value["status"], "idle");
     }
 
     #[test]
