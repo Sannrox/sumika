@@ -10,6 +10,14 @@
       "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. Not a pane, tab, kind, or headless run."
     },
     {
+      "name": "ConfiguredSession",
+      "description": "A start recipe {name, argv, cwd?, key?} in the operator config. Not a live Session until start. Not a kind or pane."
+    },
+    {
+      "name": "Config",
+      "description": "The operator file that lists ConfiguredSession records. Path precedence: --config, then SUMIKA_CONFIG, then ~/.config/sumika/config.toml."
+    },
+    {
       "name": "Attach",
       "description": "The exclusive focused client of one Session. Bytes are a raw PTY. A second Attach steals. Detach leaves the child."
     },
@@ -35,6 +43,18 @@
       "name": "updates",
       "description": "A Report updates a Session's attention status. It does not parse the PTY.",
       "domain": "Report",
+      "range": "Session"
+    },
+    {
+      "name": "lists",
+      "description": "A Config lists ConfiguredSession recipes. Starting one creates a Session of the same name; it does not keep a second child for a live name.",
+      "domain": "Config",
+      "range": "ConfiguredSession"
+    },
+    {
+      "name": "starts_as",
+      "description": "A ConfiguredSession starts as a Session of the same name. The daemon owns the process; the config is a client-side recipe.",
+      "domain": "ConfiguredSession",
       "range": "Session"
     }
   ],
@@ -79,6 +99,30 @@
       "subject": "updates",
       "source": "sumika",
       "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "ConfiguredSession",
+      "source": "sumika",
+      "locator": "docs/decisions/0001-week0.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Config",
+      "source": "sumika",
+      "locator": "docs/decisions/0001-week0.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "lists",
+      "source": "sumika",
+      "locator": "README.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "starts_as",
+      "source": "sumika",
+      "locator": "README.md",
       "confidence": 1.0
     }
   ]
