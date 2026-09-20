@@ -30,6 +30,10 @@ _Avoid_: share, refuse, broadcast
 A hook-originated attention signal (`idle`, `blocked`, `running`) for a session. Absence is `unknown`.
 _Avoid_: screen scrape, parser, idle_prompt
 
+**Copy mode**:
+A client overlay over the session line ring. Yank copies a line. Attach is a raw PTY otherwise.
+_Avoid_: tmux copy-mode as identity, screen scrape, agent TUI clone
+
 **Picker**:
 The full-screen list used to jump between sessions. Not a layout.
 _Avoid_: sidebar, tiles, workspaces

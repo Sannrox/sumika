@@ -20,6 +20,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph};
 use sumika::chord::{Chord, Feed, Matcher, format_chord};
 use sumika::config::{SessionSpec, load, resolve_config_path};
+use sumika::copy::{self, CopyMode};
 use sumika::picker::{Action, Input, Picker, glyph, help_lines};
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
@@ -837,35 +838,163 @@ async fn proxy_tty(
     let mut stdin_pump = spawn_stdin_thread(chord);
     let (mut reader, mut writer) = stream.into_split();
     let mut stdout = tokio::io::stdout();
-    let pump_out = async {
-        let mut buf = [0u8; 4096];
-        loop {
-            match reader.read(&mut buf).await {
-                Ok(0) => return EXIT_STOLEN,
-                Ok(n) => {
-                    if stdout.write_all(&buf[..n]).await.is_err() {
-                        return EXIT_STOLEN;
-                    }
-                    let _ = stdout.flush().await;
-                }
-                Err(_) => return EXIT_STOLEN,
-            }
-        }
-    };
-    let pump_in = async {
-        while let Some(bytes) = stdin_pump.rx.recv().await {
+    let mut copy_mode: Option<CopyMode> = None;
+    let mut restore = String::new();
+    let mut held = Vec::new();
+    let mut buffering = false;
+    let mut stdin_closed = false;
+    let mut pending_keys = Vec::new();
+    let mut fetch: Option<tokio::task::JoinHandle<Result<Response, ClientError>>> = None;
+    let mut pty_buf = [0u8; 4096];
+    let (to_pty_tx, mut to_pty_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
+    let mut to_pty = Some(to_pty_tx);
+    let write_pty = async {
+        while let Some(bytes) = to_pty_rx.recv().await {
             if writer.write_all(&bytes).await.is_err() {
                 return EXIT_STOLEN;
             }
+            let _ = writer.flush().await;
         }
         EXIT_OK
     };
-    tokio::pin!(pump_out);
-    tokio::pin!(pump_in);
+    tokio::pin!(write_pty);
     loop {
         tokio::select! {
-            code = &mut pump_out => return map_attach_eof(client, name, code).await,
-            code = &mut pump_in => return map_attach_eof(client, name, code).await,
+            code = &mut write_pty => return map_attach_eof(client, name, code).await,
+            res = async { fetch.as_mut().unwrap().await }, if fetch.is_some() => {
+                fetch = None;
+                buffering = false;
+                let fetched = match res {
+                    Ok(Ok(response)) if response.ok => Some((
+                        response.scrollback.unwrap_or_default(),
+                        response.restore.unwrap_or_default(),
+                    )),
+                    _ => None,
+                };
+                let Some((lines, next_restore)) = fetched else {
+                    if !held.is_empty() {
+                        let _ = stdout.write_all(&held).await;
+                        held.clear();
+                        let _ = stdout.flush().await;
+                    }
+                    continue;
+                };
+                restore = next_restore;
+                let mut mode = CopyMode::new(lines);
+                let rows = terminal_size().map(|(_, rows)| rows as usize).unwrap_or(24);
+                let keys = std::mem::take(&mut pending_keys);
+                let mut leave = false;
+                for byte in keys {
+                    match mode.feed(byte) {
+                        copy::Action::Stay => {}
+                        copy::Action::Leave => {
+                            leave = true;
+                            break;
+                        }
+                        copy::Action::Yank(text) => {
+                            let _ = copy::yank(&text);
+                        }
+                    }
+                }
+                if leave || stdin_closed {
+                    write_restore(&mut stdout, &restore, &held).await;
+                    held.clear();
+                    if stdin_closed {
+                        drop(to_pty.take());
+                        let _ = (&mut write_pty).await;
+                        return map_attach_eof(client, name, EXIT_OK).await;
+                    }
+                    continue;
+                }
+                let _ = stdout.write_all(copy::render(&mode, rows).as_bytes()).await;
+                let _ = stdout.flush().await;
+                copy_mode = Some(mode);
+            }
+            read = reader.read(&mut pty_buf) => {
+                match read {
+                    Ok(0) => {
+                        if copy_mode.take().is_some() {
+                            write_restore(&mut stdout, &restore, &held).await;
+                        }
+                        return map_attach_eof(client, name, EXIT_STOLEN).await;
+                    }
+                    Ok(n) => {
+                        if copy_mode.is_some() || buffering {
+                            held.extend_from_slice(&pty_buf[..n]);
+                            let cap = 256 * 1024_usize;
+                            if held.len() > cap {
+                                held.drain(..held.len() - cap);
+                            }
+                        } else if stdout.write_all(&pty_buf[..n]).await.is_err() {
+                            return map_attach_eof(client, name, EXIT_STOLEN).await;
+                        } else {
+                            let _ = stdout.flush().await;
+                        }
+                    }
+                    Err(_) => return map_attach_eof(client, name, EXIT_STOLEN).await,
+                }
+            }
+            event = stdin_pump.rx.recv(), if !stdin_closed => {
+                match event {
+                    None => {
+                        stdin_closed = true;
+                        if fetch.is_some() || buffering {
+                            continue;
+                        }
+                        if copy_mode.take().is_some() {
+                            write_restore(&mut stdout, &restore, &held).await;
+                        }
+                        drop(to_pty.take());
+                        let _ = (&mut write_pty).await;
+                        return map_attach_eof(client, name, EXIT_OK).await;
+                    }
+                    Some(InEvent::Copy) => {
+                        buffering = true;
+                        let client = client.clone();
+                        let name = name.to_string();
+                        fetch = Some(tokio::spawn(async move {
+                            client
+                                .rpc(&Request::Scrollback { name })
+                                .await
+                        }));
+                    }
+                    Some(InEvent::Bytes(bytes)) => {
+                        if buffering && copy_mode.is_none() {
+                            pending_keys.extend(bytes);
+                        } else if let Some(mode) = copy_mode.as_mut() {
+                            let rows = terminal_size().map(|(_, rows)| rows as usize).unwrap_or(24);
+                            for byte in bytes {
+                                match mode.feed(byte) {
+                                    copy::Action::Stay => {}
+                                    copy::Action::Leave => {
+                                        copy_mode = None;
+                                        write_restore(&mut stdout, &restore, &held).await;
+                                        held.clear();
+                                        break;
+                                    }
+                                    copy::Action::Yank(text) => {
+                                        let _ = copy::yank(&text);
+                                        let _ = stdout.write_all(copy::render(mode, rows).as_bytes()).await;
+                                        let _ = stdout.flush().await;
+                                    }
+                                }
+                            }
+                            if let Some(mode) = copy_mode.as_ref() {
+                                let _ = stdout.write_all(copy::render(mode, rows).as_bytes()).await;
+                                let _ = stdout.flush().await;
+                            }
+                        } else if to_pty
+                            .as_ref()
+                            .unwrap()
+                            .send(bytes)
+                            .await
+                            .is_err()
+                        {
+                            return map_attach_eof(client, name, EXIT_STOLEN).await;
+                        }
+                    }
+                }
+            }
             _ = async {
                 match winch.as_mut() {
                     Some(signal) => { signal.recv().await; }
@@ -881,9 +1010,26 @@ async fn proxy_tty(
                     Some(signal) => { signal.recv().await; }
                     None => std::future::pending::<()>().await,
                 }
-            } => return EXIT_TERMINATED,
+            } => {
+                if copy_mode.take().is_some() {
+                    write_restore(&mut stdout, &restore, &held).await;
+                }
+                return EXIT_TERMINATED;
+            }
         }
     }
+}
+
+async fn write_restore(stdout: &mut tokio::io::Stdout, restore: &str, held: &[u8]) {
+    if restore.is_empty() {
+        let _ = stdout.write_all(copy::clear_viewport()).await;
+    } else {
+        let _ = stdout.write_all(restore.as_bytes()).await;
+    }
+    if !held.is_empty() {
+        let _ = stdout.write_all(held).await;
+    }
+    let _ = stdout.flush().await;
 }
 
 async fn map_attach_eof(client: &Client, name: &str, code: i32) -> i32 {
@@ -903,8 +1049,13 @@ async fn map_attach_eof(client: &Client, name: &str, code: i32) -> i32 {
     }
 }
 
+enum InEvent {
+    Bytes(Vec<u8>),
+    Copy,
+}
+
 struct StdinPump {
-    rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    rx: tokio::sync::mpsc::Receiver<InEvent>,
     _cancel: File,
 }
 
@@ -932,25 +1083,45 @@ fn spawn_stdin_thread(chord: Chord) -> StdinPump {
                         let mut out = Vec::new();
                         matcher.flush_pending(&mut out);
                         if !out.is_empty() {
-                            let _ = tx.blocking_send(out);
+                            let _ = tx.blocking_send(InEvent::Bytes(out));
                         }
                         break;
                     }
                     Ok(n) => {
-                        let mut out = Vec::new();
-                        match matcher.feed(&buf[..n], &mut out) {
-                            Feed::Detach => {
-                                if !out.is_empty() {
-                                    let _ = tx.blocking_send(out);
-                                }
-                                break;
-                            }
-                            Feed::Forward if out.is_empty() => {}
-                            Feed::Forward => {
-                                if tx.blocking_send(out).is_err() {
+                        let mut stop = false;
+                        for &b in &buf[..n] {
+                            let mut out = Vec::new();
+                            match matcher.feed(&[b], &mut out) {
+                                Feed::Detach => {
+                                    if !out.is_empty() {
+                                        let _ = tx.blocking_send(InEvent::Bytes(out));
+                                    }
+                                    stop = true;
                                     break;
                                 }
+                                Feed::Copy => {
+                                    if !out.is_empty()
+                                        && tx.blocking_send(InEvent::Bytes(out)).is_err()
+                                    {
+                                        stop = true;
+                                        break;
+                                    }
+                                    if tx.blocking_send(InEvent::Copy).is_err() {
+                                        stop = true;
+                                        break;
+                                    }
+                                }
+                                Feed::Forward if out.is_empty() => {}
+                                Feed::Forward => {
+                                    if tx.blocking_send(InEvent::Bytes(out)).is_err() {
+                                        stop = true;
+                                        break;
+                                    }
+                                }
                             }
+                        }
+                        if stop {
+                            break;
                         }
                     }
                     Err(_) => break,

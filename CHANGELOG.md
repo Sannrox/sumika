@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Copy mode over the session line ring (prefix then `y`). Yank goes to the
+  system clipboard. Attach stays a raw PTY otherwise; steal and the child
+  are unchanged.
 - Picker help page (`?`) and `sumika keys` listing move, attach, quit,
   restart, jump keys, glyphs, and the detach chord.
 - Operator daemon log (`$XDG_STATE_HOME/sumika/daemon.log`, override

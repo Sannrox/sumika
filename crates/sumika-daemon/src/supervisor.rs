@@ -84,6 +84,7 @@ impl Supervisor {
             Request::Resize { name, cols, rows } => self.resize(&name, cols, rows),
             Request::Kill { name, force } => self.kill(&name, force),
             Request::Report { name, status } => self.report(name, status),
+            Request::Scrollback { name } => self.scrollback(&name),
             Request::Attach { .. } => Response::err(ErrorCode::InvalidRequest, "attach is not rpc"),
         }
     }
@@ -251,6 +252,16 @@ impl Supervisor {
             notify_unfocused(&name, status);
         }
         Response::session(session.info())
+    }
+
+    fn scrollback(&self, name: &str) -> Response {
+        let session = match self.get(name) {
+            Some(session) => session,
+            None => return unknown(name),
+        };
+        session.reap();
+        let restore = String::from_utf8_lossy(&session.frame.snapshot()).into_owned();
+        Response::scrollback(session.frame.copy_lines(), restore)
     }
 
     fn get(&self, name: &str) -> Option<Arc<Session>> {

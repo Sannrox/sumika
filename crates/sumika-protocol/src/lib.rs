@@ -60,6 +60,9 @@ pub enum Request {
         name: String,
         status: Status,
     },
+    Scrollback {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +89,10 @@ pub struct Response {
     pub session: Option<SessionInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sessions: Option<Vec<SessionInfo>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scrollback: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restore: Option<String>,
 }
 
 impl Response {
@@ -95,6 +102,8 @@ impl Response {
             error: None,
             session: None,
             sessions: None,
+            scrollback: None,
+            restore: None,
         }
     }
 
@@ -104,6 +113,8 @@ impl Response {
             error: None,
             session: Some(session),
             sessions: None,
+            scrollback: None,
+            restore: None,
         }
     }
 
@@ -113,6 +124,19 @@ impl Response {
             error: None,
             session: None,
             sessions: Some(sessions),
+            scrollback: None,
+            restore: None,
+        }
+    }
+
+    pub fn scrollback(lines: Vec<String>, restore: String) -> Self {
+        Self {
+            ok: true,
+            error: None,
+            session: None,
+            sessions: None,
+            scrollback: Some(lines),
+            restore: Some(restore),
         }
     }
 
@@ -125,6 +149,8 @@ impl Response {
             }),
             session: None,
             sessions: None,
+            scrollback: None,
+            restore: None,
         }
     }
 
@@ -290,6 +316,16 @@ mod tests {
         assert_eq!(value["op"], "report");
         assert_eq!(value["name"], "kiro");
         assert_eq!(value["status"], "idle");
+    }
+
+    #[test]
+    fn scrollback_request_json_shape() {
+        let req = Request::Scrollback {
+            name: "demo".into(),
+        };
+        let value = serde_json::to_value(&req).unwrap();
+        assert_eq!(value["op"], "scrollback");
+        assert_eq!(value["name"], "demo");
     }
 
     #[test]

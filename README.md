@@ -23,7 +23,10 @@ Use one terminal window whose command is `sumika`. The picker is how you
 jump. Glyphs are hook status, not a screen scrape: `!` blocked, `·` idle,
 `…` running, `?` unknown, `✗` dead. Keys live in that TUI, not in the terminal emulator: `j`/`k`, Enter,
 `q`, configured jump keys, `r` on a dead row, and the detach chord
-(default `Ctrl-\` then `Ctrl-b`) back to the picker. The launchd user agent
+(default `Ctrl-\` then `Ctrl-b`) back to the picker. Prefix then `y` enters
+copy mode over the session ring: `j`/`k`/`g`/`G`, `y` yank to the clipboard,
+`/` search, `n`/`N`, `q` leave. Attach is a raw PTY when not in copy mode.
+The launchd user agent
 owns the daemon; the daemon is the workspace. Closing the window leaves
 every child running. Clicking a notification is not required.
 
