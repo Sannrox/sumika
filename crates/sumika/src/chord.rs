@@ -88,6 +88,22 @@ pub fn parse_chord(keys: &[String]) -> Result<Chord, String> {
     })
 }
 
+pub fn format_key(byte: u8) -> String {
+    match byte {
+        0x1c => "C-\\".into(),
+        0x00..=0x1f => format!("C-{}", ((byte + b'@') as char).to_ascii_lowercase()),
+        other => format!("0x{other:02x}"),
+    }
+}
+
+pub fn format_chord(chord: Chord) -> String {
+    format!(
+        "{} then {}",
+        format_key(chord.first),
+        format_key(chord.second)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +115,7 @@ mod tests {
         assert_eq!(chord.second, 0x02);
         assert_eq!(parse_key("C-\\").unwrap(), 0x1c);
         assert_eq!(parse_key("C-b").unwrap(), 0x02);
+        assert_eq!(format_chord(chord), "C-\\ then C-b");
     }
 
     #[test]

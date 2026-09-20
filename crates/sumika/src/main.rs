@@ -15,11 +15,12 @@ use crossterm::terminal::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, List, ListItem, ListState};
-use sumika::chord::{Chord, Feed, Matcher};
+use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph};
+use sumika::chord::{Chord, Feed, Matcher, format_chord};
 use sumika::config::{SessionSpec, load, resolve_config_path};
-use sumika::picker::{Action, Input, Picker, glyph};
+use sumika::picker::{Action, Input, Picker, glyph, help_lines};
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
     EXIT_OK, EXIT_STOLEN, EXIT_UNREACHABLE, EXIT_USAGE, Request, Response, Status,
@@ -78,6 +79,8 @@ enum Command {
     },
     /// Map a vendor hook payload on stdin to `report`. Always exits 0.
     HookReport,
+    /// Print picker and attach shortcuts.
+    Keys,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -113,6 +116,10 @@ async fn main() -> ExitCode {
         Some(Command::Doctor { json }) => {
             let client = Client::new(sock);
             ExitCode::from(run_doctor(client, cli.config, json).await as u8)
+        }
+        Some(Command::Keys) => {
+            print_keys(cli.config);
+            ExitCode::from(EXIT_OK as u8)
         }
         Some(other) => {
             let client = Client::new(sock);
@@ -247,7 +254,7 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
-        Command::Doctor { .. } => unreachable!(),
+        Command::Doctor { .. } | Command::Keys => unreachable!(),
         Command::Report { name, status } => {
             print_rpc(
                 &client,
@@ -372,8 +379,9 @@ async fn run_picker(client: Client, config: Option<PathBuf>) -> i32 {
         }
     };
     let mut picker = Picker::new(rows, jumps);
+    let detach = format_chord(load_chord(Some(config_path.as_path())));
     loop {
-        let action = match run_picker_screen(&client, &mut picker).await {
+        let action = match run_picker_screen(&client, &mut picker, &detach).await {
             Ok(action) => action,
             Err(err) => {
                 eprintln!("{err}");
@@ -419,7 +427,11 @@ impl Drop for PickerScreen {
     }
 }
 
-async fn run_picker_screen(client: &Client, picker: &mut Picker) -> io::Result<Action> {
+async fn run_picker_screen(
+    client: &Client,
+    picker: &mut Picker,
+    detach: &str,
+) -> io::Result<Action> {
     let _screen = PickerScreen::enter()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let mut term = signal(SignalKind::terminate()).ok();
@@ -439,12 +451,24 @@ async fn run_picker_screen(client: &Client, picker: &mut Picker) -> io::Result<A
                 .with_selected((!picker.rows().is_empty()).then_some(picker.selected_index()));
             frame.render_stateful_widget(
                 List::new(items)
-                    .block(Block::bordered().title("sumika"))
+                    .block(Block::bordered().title("sumika").title_bottom(" ? help "))
                     .highlight_symbol("> ")
                     .highlight_style(Style::default().add_modifier(Modifier::REVERSED)),
                 frame.area(),
                 &mut state,
             );
+            if picker.help_open() {
+                let lines = help_lines(picker.jumps(), detach);
+                let height = (lines.len() as u16).saturating_add(2);
+                let area = help_area(frame.area(), height);
+                if area.width > 0 && area.height > 0 {
+                    frame.render_widget(Clear, area);
+                    frame.render_widget(
+                        Paragraph::new(lines.join("\n")).block(Block::bordered().title("keys")),
+                        area,
+                    );
+                }
+            }
         })?;
         tokio::select! {
             _ = async {
@@ -467,6 +491,7 @@ async fn run_picker_screen(client: &Client, picker: &mut Picker) -> io::Result<A
                 continue;
             }
             let input = match key.code {
+                KeyCode::Char('?') => Input::Help,
                 KeyCode::Enter => Input::Attach,
                 KeyCode::Esc | KeyCode::Char('q') => Input::Quit,
                 KeyCode::Char('r') => Input::Restart,
@@ -732,6 +757,34 @@ fn load_chord(config: Option<&std::path::Path>) -> Chord {
     match load(&path) {
         Ok(config) => config.detach_chord().unwrap_or_default(),
         Err(_) => Chord::default(),
+    }
+}
+
+fn print_keys(config: Option<PathBuf>) {
+    let path = resolve_config_path(config);
+    let jumps = load(&path)
+        .map(|config| config.jump_keys())
+        .unwrap_or_default();
+    let detach = format_chord(load_chord(Some(path.as_path())));
+    println!("sumika keys");
+    for line in help_lines(&jumps, &detach) {
+        println!("{line}");
+    }
+}
+
+fn help_area(area: Rect, height: u16) -> Rect {
+    if area.width == 0 || area.height == 0 {
+        return Rect::new(area.x, area.y, 0, 0);
+    }
+    let width = area.width.saturating_sub(4).min(52).min(area.width);
+    let height = height.min(area.height);
+    let x = area.x + area.width.saturating_sub(width) / 2;
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect {
+        x,
+        y,
+        width,
+        height,
     }
 }
 
