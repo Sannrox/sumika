@@ -7,7 +7,7 @@
     },
     {
       "name": "Session",
-      "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. The daemon keeps a last VT frame and a bounded line ring for attach. Not a pane, tab, kind, or headless run."
+      "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. Uniqueness is name. cwd is the child's working directory, not a project or picker filter. The daemon keeps a last VT frame and a bounded line ring for attach. Not a pane, tab, kind, or headless run."
     },
     {
       "name": "ConfiguredSession",
@@ -23,7 +23,7 @@
     },
     {
       "name": "Picker",
-      "description": "The full-screen list used to jump between Sessions. Not a layout, sidebar, or multiplexer."
+      "description": "The full-screen list used to jump between Sessions by name. Not a layout, sidebar, multiplexer, or directory scope."
     },
     {
       "name": "Report",
@@ -112,6 +112,12 @@
       "confidence": 1.0
     },
     {
+      "subject": "Session",
+      "source": "sumika",
+      "locator": "docs/decisions/0003-cwd-is-not-a-project.md",
+      "confidence": 1.0
+    },
+    {
       "subject": "Attach",
       "source": "sumika",
       "locator": "CONTEXT.md",
@@ -121,6 +127,12 @@
       "subject": "Picker",
       "source": "sumika",
       "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Picker",
+      "source": "sumika",
+      "locator": "docs/decisions/0003-cwd-is-not-a-project.md",
       "confidence": 1.0
     },
     {

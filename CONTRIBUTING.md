@@ -10,8 +10,9 @@ a public issue or pull request.
 ## Before you start
 
 - Search existing issues and pull requests before proposing overlapping work.
-- Read [VISION.md](VISION.md), [CONTEXT.md](CONTEXT.md), and
-  [docs/decisions/0001-week0.md](docs/decisions/0001-week0.md).
+- Read [VISION.md](VISION.md), [CONTEXT.md](CONTEXT.md),
+  [docs/decisions/0001-week0.md](docs/decisions/0001-week0.md), and
+  [docs/decisions/0003-cwd-is-not-a-project.md](docs/decisions/0003-cwd-is-not-a-project.md).
 - Open an issue before changing attach exclusivity, status reporting, or the
   daemon/CLI crate split.
 

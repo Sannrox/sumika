@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Decision: the picker is not a directory scope. Session uniqueness stays
+  `name`. `cwd` is the child's working directory, not a project
+  ([`docs/decisions/0003-cwd-is-not-a-project.md`](docs/decisions/0003-cwd-is-not-a-project.md)).
 - Picker attention: blocked rows sort first, a status line names who needs
   you (`kiro !  cursor ·`). Desktop banners are off unless `SUMIKA_NOTIFY=os`.
   `SUMIKA_NOTIFY_FILE` remains the test sink.

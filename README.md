@@ -222,6 +222,7 @@ Sumika is the interactive PTY habitat. It is not
 
 Language: [CONTEXT.md](CONTEXT.md). Path: [VISION.md](VISION.md).
 Week 0 locks: [docs/decisions/0001-week0.md](docs/decisions/0001-week0.md).
+`cwd` is not a project: [docs/decisions/0003-cwd-is-not-a-project.md](docs/decisions/0003-cwd-is-not-a-project.md).
 
 ## Contributing
 
