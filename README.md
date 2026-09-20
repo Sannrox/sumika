@@ -105,7 +105,10 @@ keys to move in that case.
 Bare `sumika` opens a full-screen picker of daemon sessions. `j`/`k` move,
 Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
 children. Configured `key` values jump. `r` on a dead row starts that session
-from config.
+from config. While attached, the client intercepts a two-key detach chord
+(default `Ctrl-\` then `Ctrl-b`) and returns to the picker; those bytes are
+not sent to the child. Override with `detach_chord = ["C-\\", "C-b"]` in
+config. Closing the window still leaves the child.
 
 ```text
 sumika [--sock PATH] [--config PATH] [COMMAND]

@@ -16,6 +16,7 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, List, ListItem, ListState};
+use sumika::chord::{Chord, Feed, Matcher};
 use sumika::config::{SessionSpec, load, resolve_config_path};
 use sumika::picker::{Action, Input, Picker, liveness};
 use sumika_ctl::{Client, ClientError};
@@ -113,7 +114,7 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             argv,
         } => start_command(&client, config, name, all, cwd, argv).await,
         Command::List { json } => print_rpc(&client, &Request::List, json).await,
-        Command::Attach { name } => attach(&client, name).await,
+        Command::Attach { name } => attach(&client, name, load_chord(config.as_deref())).await,
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
@@ -149,7 +150,7 @@ async fn run_picker(client: Client, config: Option<PathBuf>) -> i32 {
             Action::Quit => return EXIT_OK,
             Action::None => {}
             Action::Attach(name) => {
-                let code = attach(&client, name).await;
+                let code = attach(&client, name, load_chord(Some(config_path.as_path()))).await;
                 if code == EXIT_UNREACHABLE || code == EXIT_TERMINATED {
                     return code;
                 }
@@ -494,7 +495,15 @@ impl Drop for RawGuard {
     }
 }
 
-async fn attach(client: &Client, name: String) -> i32 {
+fn load_chord(config: Option<&std::path::Path>) -> Chord {
+    let path = resolve_config_path(config.map(PathBuf::from));
+    match load(&path) {
+        Ok(config) => config.detach_chord().unwrap_or_default(),
+        Err(_) => Chord::default(),
+    }
+}
+
+async fn attach(client: &Client, name: String, chord: Chord) -> i32 {
     let (response, stream) = match client.attach(&name).await {
         Ok(value) => value,
         Err(err) => {
@@ -523,17 +532,23 @@ async fn attach(client: &Client, name: String) -> i32 {
     if raw && let Ok((cols, rows)) = terminal_size() {
         let _ = resize(client, &name, cols, rows).await;
     }
-    proxy_tty(client, &name, stream, raw).await
+    proxy_tty(client, &name, stream, raw, chord).await
 }
 
-async fn proxy_tty(client: &Client, name: &str, stream: tokio::net::UnixStream, raw: bool) -> i32 {
+async fn proxy_tty(
+    client: &Client,
+    name: &str,
+    stream: tokio::net::UnixStream,
+    raw: bool,
+    chord: Chord,
+) -> i32 {
     let mut winch = if raw {
         signal(SignalKind::window_change()).ok()
     } else {
         None
     };
     let mut term = signal(SignalKind::terminate()).ok();
-    let mut stdin_pump = spawn_stdin_thread();
+    let mut stdin_pump = spawn_stdin_thread(chord);
     let (mut reader, mut writer) = stream.into_split();
     let mut stdout = tokio::io::stdout();
     let pump_out = async {
@@ -607,7 +622,7 @@ struct StdinPump {
     _cancel: File,
 }
 
-fn spawn_stdin_thread() -> StdinPump {
+fn spawn_stdin_thread(chord: Chord) -> StdinPump {
     let (tx, rx) = tokio::sync::mpsc::channel(32);
     let (cancel_r, cancel_w) = pipe_pair();
     let stdin_fd = unsafe { libc::dup(libc::STDIN_FILENO) };
@@ -620,16 +635,36 @@ fn spawn_stdin_thread() -> StdinPump {
         .name("sumika-stdin".into())
         .spawn(move || {
             let _cancel_r = cancel_r;
+            let mut matcher = Matcher::new(chord);
             let mut buf = [0u8; 4096];
             loop {
                 if !wait_stdin_or_cancel(stdin.as_raw_fd(), cancel_fd) {
                     break;
                 }
                 match stdin.read(&mut buf) {
-                    Ok(0) => break,
+                    Ok(0) => {
+                        let mut out = Vec::new();
+                        matcher.flush_pending(&mut out);
+                        if !out.is_empty() {
+                            let _ = tx.blocking_send(out);
+                        }
+                        break;
+                    }
                     Ok(n) => {
-                        if tx.blocking_send(buf[..n].to_vec()).is_err() {
-                            break;
+                        let mut out = Vec::new();
+                        match matcher.feed(&buf[..n], &mut out) {
+                            Feed::Detach => {
+                                if !out.is_empty() {
+                                    let _ = tx.blocking_send(out);
+                                }
+                                break;
+                            }
+                            Feed::Forward if out.is_empty() => {}
+                            Feed::Forward => {
+                                if tx.blocking_send(out).is_err() {
+                                    break;
+                                }
+                            }
                         }
                     }
                     Err(_) => break,
