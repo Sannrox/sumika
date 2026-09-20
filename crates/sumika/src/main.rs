@@ -297,10 +297,25 @@ async fn ensure_daemon(client: &Client) {
     let Ok(bin) = std::env::current_exe() else {
         return;
     };
-    let Ok(plist) = sumika::service::install_launchd(&bin) else {
+    #[cfg(target_os = "macos")]
+    {
+        let Ok(plist) = sumika::service::install_launchd(&bin) else {
+            return;
+        };
+        let _ = sumika::service::bootstrap_launchd(&plist);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(_) = sumika::service::install_systemd(&bin) else {
+            return;
+        };
+        let _ = sumika::service::enable_systemd();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = bin;
         return;
-    };
-    let _ = sumika::service::bootstrap_launchd(&plist);
+    }
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
     while tokio::time::Instant::now() < deadline {
         if client.rpc(&Request::Ping).await.is_ok() {
@@ -342,6 +357,10 @@ async fn run_doctor(client: Client, config: Option<PathBuf>, json: bool) -> i32 
         match report.launchd_loaded {
             Some(loaded) => println!("launchd\t{loaded}"),
             None => println!("launchd\t-"),
+        }
+        match report.systemd_user_loaded {
+            Some(loaded) => println!("systemd\t{loaded}"),
+            None => println!("systemd\t-"),
         }
         println!("config\t{}", report.config);
         for session in &report.sessions {

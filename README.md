@@ -147,13 +147,14 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `list [--json]` | List sessions |
 | `attach [NAME]` | Exclusive attach (steals). No name uses last-attached. |
 | `kill NAME [--force]` | Kill a session |
-| `doctor [--json]` | Socket, reachability, launchd, config, session pids |
+| `doctor [--json]` | Socket, reachability, launchd/systemd, config, session pids |
 | `report NAME idle\|blocked\|running` | Hook attention status |
 | `hook-report` | Map a vendor hook payload on stdin to `report` (fail-open) |
 
 `sumika report` stores hook status on the session. If that session is not the
-focused attach, sumika fires a macOS notification with the name and status —
-never PTY contents. Absence of a report is `unknown`. Adapters fail open.
+focused attach, sumika notifies with the name and status — never PTY
+contents. macOS uses Notification Center; Linux uses `notify-send`. Absence
+of a report is `unknown`. Adapters fail open.
 
 Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
 vendor settings; do not replace unrelated hooks. The child inherits
@@ -167,8 +168,13 @@ On macOS the daily-driver owner is a launchd user agent
 (`contrib/launchd/com.sumika.daemon.plist`). If the default socket is missing,
 `sumika` installs and bootstraps that agent so the daemon is not a child of the
 TUI. `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.sumika.daemon.plist`
-is the one-shot install. A systemd `--user` unit ships in
-`contrib/systemd/sumika.service` but is not the daily-driver claim.
+is the one-shot install.
+
+On Linux the owner is a systemd `--user` unit (`contrib/systemd/sumika.service`).
+If the default socket is missing, `sumika` installs it under
+`~/.config/systemd/user/sumika.service` and runs `systemctl --user enable --now
+sumika.service`. Closing the terminal client leaves the unit (and every child)
+running. `loginctl enable-linger` is needed only so the unit survives logout.
 
 `doctor` is non-zero when the daemon is unreachable. It never prints PTY
 contents.

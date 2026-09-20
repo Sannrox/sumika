@@ -406,24 +406,42 @@ fn notify_unfocused(name: &str, status: Status) {
         && !path.is_empty()
     {
         let _ = std::fs::write(path, format!("{name}\t{label}\n"));
-    } else {
-        #[cfg(target_os = "macos")]
-        {
-            let title = "sumika";
-            let body = format!("{name} is {label}");
-            let script = format!(
-                "display notification \"{}\" with title \"{}\"",
-                body.replace('\\', "\\\\").replace('"', "\\\""),
-                title
-            );
-            let _ = std::process::Command::new("osascript")
-                .args(["-e", &script])
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-        }
+        return;
     }
+    let body = format!("{name} is {label}");
+    if let Ok(bin) = std::env::var("SUMIKA_NOTIFY_SEND")
+        && !bin.is_empty()
+    {
+        notify_send(&bin, &body);
+        return;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        notify_send("notify-send", &body);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!(
+            "display notification \"{}\" with title \"{}\"",
+            body.replace('\\', "\\\\").replace('"', "\\\""),
+            "sumika"
+        );
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+}
+
+fn notify_send(bin: &str, body: &str) {
+    let _ = std::process::Command::new(bin)
+        .args(["-a", "sumika", "sumika", body])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 }
 
 fn drain_pty(

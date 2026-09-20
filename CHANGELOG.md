@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Linux daily driver: systemd `--user` unit owns `sumika daemon`, and
+  unfocused `idle`/`blocked` uses `notify-send`. `doctor` reports whether
+  the user unit is active.
 - Copy mode over the session line ring (prefix then `y`). Yank goes to the
   system clipboard. Attach stays a raw PTY otherwise; steal and the child
   are unchanged.
