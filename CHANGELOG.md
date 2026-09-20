@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Picker glyphs from hook status: `!` blocked, `·` idle, `…` running,
+  `?` unknown, `✗` dead.
 - Last-attached name under the XDG state dir. `sumika attach` with no name
   reattaches that session; bare `sumika` still opens the picker.
 - `sumika report NAME idle|blocked|running` stores hook status and notifies

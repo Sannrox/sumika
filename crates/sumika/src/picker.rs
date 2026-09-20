@@ -104,11 +104,13 @@ impl Picker {
     }
 }
 
-pub fn liveness(status: Status) -> &'static str {
-    if status == Status::Dead {
-        "dead"
-    } else {
-        "running"
+pub fn glyph(status: Status) -> &'static str {
+    match status {
+        Status::Blocked => "!",
+        Status::Idle => "·",
+        Status::Running => "…",
+        Status::Unknown => "?",
+        Status::Dead => "✗",
     }
 }
 
@@ -125,6 +127,15 @@ mod tests {
             pid: None,
             focused: false,
         }
+    }
+
+    #[test]
+    fn glyphs_come_from_status_not_pty() {
+        assert_eq!(glyph(Status::Blocked), "!");
+        assert_eq!(glyph(Status::Idle), "·");
+        assert_eq!(glyph(Status::Running), "…");
+        assert_eq!(glyph(Status::Unknown), "?");
+        assert_eq!(glyph(Status::Dead), "✗");
     }
 
     #[test]

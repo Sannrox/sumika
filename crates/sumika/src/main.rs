@@ -18,7 +18,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, List, ListItem, ListState};
 use sumika::chord::{Chord, Feed, Matcher};
 use sumika::config::{SessionSpec, load, resolve_config_path};
-use sumika::picker::{Action, Input, Picker, liveness};
+use sumika::picker::{Action, Input, Picker, glyph};
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
     EXIT_OK, EXIT_STOLEN, EXIT_UNREACHABLE, EXIT_USAGE, Request, Response, Status,
@@ -336,9 +336,7 @@ async fn run_picker_screen(client: &Client, picker: &mut Picker) -> io::Result<A
             let items: Vec<ListItem> = picker
                 .rows()
                 .iter()
-                .map(|session| {
-                    ListItem::new(format!("{}\t{}", session.name, liveness(session.status)))
-                })
+                .map(|session| ListItem::new(format!("{} {}", glyph(session.status), session.name)))
                 .collect();
             let mut state = ListState::default()
                 .with_selected((!picker.rows().is_empty()).then_some(picker.selected_index()));
