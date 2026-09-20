@@ -81,6 +81,7 @@ impl Supervisor {
             Request::List => self.list(),
             Request::Resize { name, cols, rows } => self.resize(&name, cols, rows),
             Request::Kill { name, force } => self.kill(&name, force),
+            Request::Report { name, status } => self.report(name, status),
             Request::Attach { .. } => Response::err(ErrorCode::InvalidRequest, "attach is not rpc"),
         }
     }
@@ -220,6 +221,29 @@ impl Supervisor {
         Response::session(session.info())
     }
 
+    fn report(&self, name: String, status: Status) -> Response {
+        if !matches!(status, Status::Idle | Status::Blocked | Status::Running) {
+            return Response::err(
+                ErrorCode::InvalidRequest,
+                "status must be idle, blocked, or running",
+            );
+        }
+        let session = match self.get(&name) {
+            Some(session) => session,
+            None => return unknown(&name),
+        };
+        session.reap();
+        if *session.status.lock().expect("status") == Status::Dead {
+            return Response::err(ErrorCode::Dead, format!("session {name} is dead"));
+        }
+        *session.status.lock().expect("status") = status;
+        let focused = session.attach.lock().expect("attach").cancel.is_some();
+        if !focused {
+            notify_unfocused(&name, status);
+        }
+        Response::session(session.info())
+    }
+
     fn get(&self, name: &str) -> Option<Arc<Session>> {
         self.sessions.lock().expect("sessions").get(name).cloned()
     }
@@ -331,6 +355,37 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
     });
     tracing::info!(session = %name, pid, "started");
     Ok(session)
+}
+
+fn notify_unfocused(name: &str, status: Status) {
+    let label = match status {
+        Status::Idle => "idle",
+        Status::Blocked => "blocked",
+        Status::Running => "running",
+        Status::Dead | Status::Unknown => return,
+    };
+    if let Ok(path) = std::env::var("SUMIKA_NOTIFY_FILE")
+        && !path.is_empty()
+    {
+        let _ = std::fs::write(path, format!("{name}\t{label}\n"));
+    } else {
+        #[cfg(target_os = "macos")]
+        {
+            let title = "sumika";
+            let body = format!("{name} is {label}");
+            let script = format!(
+                "display notification \"{}\" with title \"{}\"",
+                body.replace('\\', "\\\\").replace('"', "\\\""),
+                title
+            );
+            let _ = std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
+    }
 }
 
 fn drain_pty(

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `sumika report NAME idle|blocked|running` stores hook status and notifies
+  on macOS when that session is not focused. Notifications never include
+  PTY contents.
 - README / VISION one-window daily driver: `sumika` is the window command,
   keys live in the TUI (including the detach chord), the daemon is the
   workspace.

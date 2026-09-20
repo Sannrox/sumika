@@ -71,6 +71,27 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    Report {
+        name: String,
+        status: ReportStatus,
+    },
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum ReportStatus {
+    Idle,
+    Blocked,
+    Running,
+}
+
+impl From<ReportStatus> for Status {
+    fn from(status: ReportStatus) -> Self {
+        match status {
+            ReportStatus::Idle => Status::Idle,
+            ReportStatus::Blocked => Status::Blocked,
+            ReportStatus::Running => Status::Running,
+        }
+    }
 }
 
 #[tokio::main]
@@ -134,6 +155,17 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
         Command::Doctor { .. } => unreachable!(),
+        Command::Report { name, status } => {
+            print_rpc(
+                &client,
+                &Request::Report {
+                    name,
+                    status: status.into(),
+                },
+                false,
+            )
+            .await
+        }
     }
 }
 
