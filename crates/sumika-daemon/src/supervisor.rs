@@ -368,23 +368,23 @@ fn notify_unfocused(name: &str, status: Status) {
         && !path.is_empty()
     {
         let _ = std::fs::write(path, format!("{name}\t{label}\n"));
-        return;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let title = "sumika";
-        let body = format!("{name} is {label}");
-        let script = format!(
-            "display notification \"{}\" with title \"{}\"",
-            body.replace('\\', "\\\\").replace('"', "\\\""),
-            title
-        );
-        let _ = std::process::Command::new("osascript")
-            .args(["-e", &script])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
+    } else {
+        #[cfg(target_os = "macos")]
+        {
+            let title = "sumika";
+            let body = format!("{name} is {label}");
+            let script = format!(
+                "display notification \"{}\" with title \"{}\"",
+                body.replace('\\', "\\\\").replace('"', "\\\""),
+                title
+            );
+            let _ = std::process::Command::new("osascript")
+                .args(["-e", &script])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
     }
 }
 
