@@ -116,15 +116,14 @@ argv = ["codex"]
 key = "x"
 ```
 
-`key` is a one-character jump in the picker (`c`, `g`, `k`, `p`, `x` in the
-sample). `j`/`k` still move unless that character is a jump key; use the arrow
-keys to move in that case.
+`key` is a one-character jump in the picker after Space (`spc` then `c` / `g` /
+`k` / `p` / `x` in the sample). Bare `j`/`k` always move.
 
 ## CLI
 
 Bare `sumika` opens a full-screen picker of daemon sessions. `j`/`k` move,
 Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
-children. Configured `key` values jump. `r` on a dead row starts that session
+children. Configured `key` values jump after Space (`spc` then the key). `r` on a dead row starts that session
 from config. `?` opens a help page of these shortcuts (again to close).
 `sumika keys` prints the same list. While attached, the client intercepts a
 two-key detach chord (default `Ctrl-\` then `Ctrl-b`) and returns to the

@@ -7,8 +7,11 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use crossterm::cursor::Show;
+use crossterm::event::DisableMouseCapture;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::execute;
+use crossterm::style::ResetColor;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
     size as terminal_size,
@@ -387,6 +390,7 @@ async fn run_picker(client: Client, config: Option<PathBuf>) -> i32 {
         eprintln!("picker requires a terminal");
         return EXIT_USAGE;
     }
+    ignore_tty_signals();
     let config_path = resolve_config_path(config);
     let jumps = load(&config_path)
         .map(|config| config.jump_keys())
@@ -469,9 +473,14 @@ async fn run_picker_screen(
                 .collect();
             let mut state = ListState::default()
                 .with_selected((!picker.rows().is_empty()).then_some(picker.selected_index()));
+            let footer = if picker.leader_pending() {
+                " spc-key "
+            } else {
+                " spc-key jump  C-\\ C-b leave  ? help "
+            };
             frame.render_stateful_widget(
                 List::new(items)
-                    .block(Block::bordered().title("sumika").title_bottom(" ? help "))
+                    .block(Block::bordered().title("sumika").title_bottom(footer))
                     .highlight_symbol("> ")
                     .highlight_style(Style::default().add_modifier(Modifier::REVERSED)),
                 frame.area(),
@@ -511,15 +520,16 @@ async fn run_picker_screen(
                 continue;
             }
             let input = match key.code {
+                KeyCode::Char(' ') => Input::Leader,
                 KeyCode::Char('?') => Input::Help,
                 KeyCode::Enter => Input::Attach,
                 KeyCode::Esc | KeyCode::Char('q') => Input::Quit,
                 KeyCode::Char('r') => Input::Restart,
                 KeyCode::Down => Input::Down,
                 KeyCode::Up => Input::Up,
-                KeyCode::Char(c) if picker.has_jump(c) => Input::Jump(c),
                 KeyCode::Char('j') => Input::Down,
                 KeyCode::Char('k') => Input::Up,
+                KeyCode::Char(c) if picker.has_jump(c) => Input::Jump(c),
                 _ => {
                     if !event::poll(Duration::ZERO)? {
                         break;
@@ -772,6 +782,24 @@ impl Drop for RawGuard {
     }
 }
 
+fn ignore_tty_signals() {
+    unsafe {
+        libc::signal(libc::SIGINT, libc::SIG_IGN);
+        libc::signal(libc::SIGQUIT, libc::SIG_IGN);
+    }
+}
+
+fn restore_client_screen() {
+    let _ = execute!(
+        io::stdout(),
+        LeaveAlternateScreen,
+        DisableMouseCapture,
+        Show,
+        ResetColor
+    );
+    let _ = io::stdout().flush();
+}
+
 fn load_chord(config: Option<&std::path::Path>) -> Chord {
     let path = resolve_config_path(config.map(PathBuf::from));
     match load(&path) {
@@ -835,10 +863,13 @@ async fn attach(client: &Client, name: String, chord: Chord) -> i32 {
     } else {
         None
     };
+    ignore_tty_signals();
     if raw && let Ok((cols, rows)) = terminal_size() {
         let _ = resize(client, &name, cols, rows).await;
     }
-    proxy_tty(client, &name, stream, raw, chord).await
+    let code = proxy_tty(client, &name, stream, raw, chord).await;
+    restore_client_screen();
+    code
 }
 
 async fn proxy_tty(
