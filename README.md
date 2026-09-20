@@ -62,23 +62,60 @@ Override the socket with `--sock` or `SUMIKA_SOCK`. The default is
 a user-owned `0700` directory (`~/Library/Caches/sumika` on macOS,
 `~/.cache/sumika` elsewhere). The daemon accepts only same-uid peers.
 
+Named sessions live in `~/.config/sumika/config.toml` (override `--config` or
+`SUMIKA_CONFIG`, same precedence as the socket: flag, then env, then default).
+`sumika start kiro` uses that record when argv is omitted. `sumika start --all`
+starts every configured session. Live names stay idempotent.
+
+```toml
+[[sessions]]
+name = "claude"
+argv = ["claude"]
+key = "c"
+
+[[sessions]]
+name = "grok"
+argv = ["grok"]
+key = "g"
+
+[[sessions]]
+name = "kiro"
+argv = ["kiro-cli"]
+cwd = "/path/to/project"
+key = "k"
+
+[[sessions]]
+name = "pi"
+argv = ["pi"]
+key = "p"
+
+[[sessions]]
+name = "codex"
+argv = ["codex"]
+key = "x"
+```
+
+`key` is stored for the picker. It is not used by `start`.
+
 ## CLI
 
 ```text
-sumika [--sock PATH] <COMMAND>
+sumika [--sock PATH] [--config PATH] <COMMAND>
 ```
 
 | Command | Purpose |
 | --- | --- |
 | `daemon` | Run the PTY supervisor |
 | `ping` | Check that the daemon is reachable |
-| `start NAME -- ARGV...` | Spawn a named session |
+| `start NAME [-- ARGV...]` | Spawn a named session (argv from config when omitted) |
+| `start --all` | Start every session in the config |
 | `list [--json]` | List sessions |
 | `attach NAME` | Exclusive attach (steals) |
 | `kill NAME [--force]` | Kill a session |
 
-`start` takes `--cwd DIR`. Without it, the child's cwd is the client's current
-directory. `start` on a live name returns that session and does not spawn a
+`start` takes `--cwd DIR`. Without it, the child's cwd is the config `cwd` if
+present, otherwise the client's current directory. Flags override config.
+`start` on a live name returns that session and does not spawn a
 second child. Restart is `kill` then `start` after the session is `dead`.
 
 ## What this is not

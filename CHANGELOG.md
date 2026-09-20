@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Named session config (`~/.config/sumika/config.toml`, override `--config` or
+  `SUMIKA_CONFIG`). `sumika start <name>` uses `{name, argv, cwd?, key?}` when
+  argv is omitted; `sumika start --all` starts every configured session. Live
+  names stay idempotent.
 - Phase 0 habitat: a Unix-socket daemon owns PTYs, and `sumika` starts, lists,
   attaches, and kills named sessions. Detach leaves the child. A second attach
   steals. Dead sessions stay dead until `start`.

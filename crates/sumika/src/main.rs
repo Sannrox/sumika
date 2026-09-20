@@ -1,3 +1,5 @@
+mod config;
+
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -11,6 +13,8 @@ use sumika_protocol::{
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::signal::unix::{SignalKind, signal};
 
+use crate::config::{SessionSpec, load, resolve_config_path};
+
 #[derive(Parser)]
 #[command(
     name = "sumika",
@@ -21,6 +25,8 @@ use tokio::signal::unix::{SignalKind, signal};
 struct Cli {
     #[arg(long, env = "SUMIKA_SOCK")]
     sock: Option<PathBuf>,
+    #[arg(long, env = "SUMIKA_CONFIG")]
+    config: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -31,10 +37,13 @@ enum Command {
     Daemon,
     Ping,
     Start {
-        name: String,
+        #[arg(required_unless_present = "all", conflicts_with = "all")]
+        name: Option<String>,
+        #[arg(long)]
+        all: bool,
         #[arg(long)]
         cwd: Option<PathBuf>,
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true, required = true)]
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         argv: Vec<String>,
     },
     List {
@@ -65,7 +74,7 @@ async fn main() -> ExitCode {
         },
         other => {
             let client = Client::new(sock);
-            ExitCode::from(run_client(client, other).await as u8)
+            ExitCode::from(run_client(client, cli.config, other).await as u8)
         }
     }
 }
@@ -81,26 +90,150 @@ async fn run_daemon(sock: PathBuf) -> anyhow::Result<()> {
     sumika_daemon::run(sock).await
 }
 
-async fn run_client(client: Client, command: Command) -> i32 {
+async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -> i32 {
     match command {
         Command::Daemon => unreachable!(),
         Command::Ping => print_rpc(&client, &Request::Ping, false).await,
-        Command::Start { name, cwd, argv } => {
-            let cwd = match resolve_cwd(cwd) {
-                Ok(path) => Some(path),
-                Err(err) => {
-                    eprintln!("{err}");
-                    return EXIT_USAGE;
-                }
-            };
-            print_rpc(&client, &Request::Start { name, argv, cwd }, false).await
-        }
+        Command::Start {
+            name,
+            all,
+            cwd,
+            argv,
+        } => start_command(&client, config, name, all, cwd, argv).await,
         Command::List { json } => print_rpc(&client, &Request::List, json).await,
         Command::Attach { name } => attach(client, name).await,
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
     }
+}
+
+async fn start_command(
+    client: &Client,
+    config: Option<PathBuf>,
+    name: Option<String>,
+    all: bool,
+    cwd: Option<PathBuf>,
+    argv: Vec<String>,
+) -> i32 {
+    let config_path = resolve_config_path(config);
+    if all {
+        if !argv.is_empty() {
+            eprintln!("start --all does not take argv");
+            return EXIT_USAGE;
+        }
+        return start_all(client, &config_path, cwd).await;
+    }
+    let name = match name {
+        Some(name) => name,
+        None => {
+            eprintln!("session name required");
+            return EXIT_USAGE;
+        }
+    };
+    let spec = match resolve_start(&config_path, &name, cwd, argv) {
+        Ok(spec) => spec,
+        Err(err) => {
+            eprintln!("{err}");
+            return EXIT_USAGE;
+        }
+    };
+    print_rpc(
+        client,
+        &Request::Start {
+            name,
+            argv: spec.argv,
+            cwd: spec.cwd,
+        },
+        false,
+    )
+    .await
+}
+
+async fn start_all(client: &Client, config_path: &std::path::Path, cwd: Option<PathBuf>) -> i32 {
+    let config = match load(config_path) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("{err}");
+            return EXIT_USAGE;
+        }
+    };
+    let mut code = EXIT_OK;
+    for session in config.sessions {
+        let spec = match apply_start(Some(&session), cwd.clone(), Vec::new()) {
+            Ok(spec) => spec,
+            Err(err) => {
+                eprintln!("{err}");
+                return EXIT_USAGE;
+            }
+        };
+        let exit = print_rpc(
+            client,
+            &Request::Start {
+                name: session.name,
+                argv: spec.argv,
+                cwd: spec.cwd,
+            },
+            false,
+        )
+        .await;
+        if exit != EXIT_OK && code == EXIT_OK {
+            code = exit;
+        }
+    }
+    code
+}
+
+struct ResolvedStart {
+    argv: Vec<String>,
+    cwd: Option<String>,
+}
+
+fn resolve_start(
+    config_path: &std::path::Path,
+    name: &str,
+    cwd: Option<PathBuf>,
+    argv: Vec<String>,
+) -> Result<ResolvedStart, String> {
+    let needs_config = argv.is_empty() || cwd.is_none();
+    let loaded = if needs_config {
+        match load(config_path) {
+            Ok(config) => Some(config),
+            Err(err) if argv.is_empty() => return Err(err.to_string()),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+    let spec = loaded.as_ref().and_then(|config| config.lookup(name));
+    if argv.is_empty() && spec.is_none() {
+        return Err(format!("no configured session named {name}"));
+    }
+    apply_start(spec, cwd, argv)
+}
+
+fn apply_start(
+    spec: Option<&SessionSpec>,
+    cwd: Option<PathBuf>,
+    argv: Vec<String>,
+) -> Result<ResolvedStart, String> {
+    let argv = if argv.is_empty() {
+        spec.map(|session| session.argv.clone())
+            .filter(|argv| !argv.is_empty())
+            .ok_or_else(|| "argv is empty".to_string())?
+    } else {
+        argv
+    };
+    let cwd = match cwd {
+        Some(path) => Some(resolve_cwd(Some(path)).map_err(|err| err.to_string())?),
+        None => match spec.and_then(|session| session.cwd.as_deref()) {
+            Some(path) => {
+                Some(resolve_cwd(Some(PathBuf::from(path))).map_err(|err| err.to_string())?)
+            }
+            None => Some(resolve_cwd(None).map_err(|err| err.to_string())?),
+        },
+    };
+    Ok(ResolvedStart { argv, cwd })
 }
 
 async fn print_rpc(client: &Client, request: &Request, json: bool) -> i32 {
