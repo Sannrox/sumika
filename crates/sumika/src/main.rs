@@ -476,7 +476,7 @@ async fn run_picker_screen(
             let footer = if picker.leader_pending() {
                 " spc-key "
             } else {
-                " spc-key jump  C-\\ C-b leave  ? help "
+                " spc-key jump  C-b q leave  ? help "
             };
             frame.render_stateful_widget(
                 List::new(items)

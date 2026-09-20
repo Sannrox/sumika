@@ -165,7 +165,7 @@ pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
         "?       toggle this help".into(),
         "spc     then jump key".into(),
         format!("{detach:<8} detach (while attached)"),
-        "C-\\ y   copy mode (while attached)".into(),
+        "C-b y   copy mode (while attached)".into(),
         "! · … ? ✗   blocked idle running unknown dead".into(),
     ];
     let mut keys: Vec<_> = jumps.iter().collect();
@@ -298,15 +298,15 @@ mod tests {
     fn help_lists_jumps_and_detach() {
         let mut jumps = HashMap::new();
         jumps.insert('k', "kiro".into());
-        let text = help_lines(&jumps, "C-\\ then C-b").join("\n");
+        let text = help_lines(&jumps, "C-b then q").join("\n");
         assert!(text.contains("j/k"));
         assert!(text.contains("enter"));
         assert!(text.contains("spc k   jump kiro"));
-        assert!(text.contains("C-\\ then C-b"));
+        assert!(text.contains("C-b then q"));
         assert!(text.contains("?       toggle this help"));
         let mut reserved = HashMap::new();
         reserved.insert('?', "nope".into());
-        let reserved_text = help_lines(&reserved, "C-\\ then C-b").join("\n");
+        let reserved_text = help_lines(&reserved, "C-b then q").join("\n");
         assert!(!reserved_text.contains("jump nope"), "{reserved_text}");
     }
 }

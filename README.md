@@ -126,9 +126,9 @@ Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
 children. Configured `key` values jump after Space (`spc` then the key). `r` on a dead row starts that session
 from config. `?` opens a help page of these shortcuts (again to close).
 `sumika keys` prints the same list. While attached, the client intercepts a
-two-key detach chord (default `Ctrl-\` then `Ctrl-b`) and returns to the
+two-key detach chord (default `Ctrl-b` then `q`) and returns to the
 picker; those bytes are not sent to the child. Override with
-`detach_chord = ["C-\\", "C-b"]` in config. Closing the window still leaves
+`detach_chord = ["C-b", "q"]` in config. Closing the window still leaves
 the child. `?` is reserved and is not a jump key.
 
 ```text

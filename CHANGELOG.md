@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Detach chord default is `C-b` then `q` (copy mode `C-b` then `y`). `C-\\`
+  is no longer the prefix — it is awkward on many keyboard layouts.
 - Picker jump keys require Space first (`spc k`), so `j`/`k` always move.
   Detach restores the client screen (leave alt-screen). SIGINT/SIGQUIT are
   ignored while the TUI is up so `C-\\` is the chord, not process quit.

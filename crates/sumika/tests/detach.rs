@@ -120,7 +120,7 @@ async fn detach_chord_returns_without_killing_or_forwarding() {
         let stdin = attach.stdin.as_mut().unwrap();
         use std::io::Write;
         stdin.write_all(b"hello\n").unwrap();
-        stdin.write_all(&[0x1c, 0x02]).unwrap();
+        stdin.write_all(&[0x02, b'q']).unwrap();
         stdin.flush().unwrap();
     }
     let output = attach.wait_with_output().unwrap();

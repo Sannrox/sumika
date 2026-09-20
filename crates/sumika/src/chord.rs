@@ -8,8 +8,8 @@ pub struct Chord {
 impl Default for Chord {
     fn default() -> Self {
         Self {
-            first: ctrl('\\'),
-            second: ctrl('b'),
+            first: ctrl('b'),
+            second: b'q',
             copy: b'y',
         }
     }
@@ -71,15 +71,21 @@ impl Matcher {
 
 pub fn parse_key(spec: &str) -> Result<u8, String> {
     let spec = spec.trim();
-    let rest = spec
+    if let Some(rest) = spec
         .strip_prefix("C-")
         .or_else(|| spec.strip_prefix("c-"))
         .or_else(|| spec.strip_prefix("ctrl-"))
         .or_else(|| spec.strip_prefix("CTRL-"))
-        .ok_or_else(|| format!("unsupported key {spec}"))?;
-    let mut chars = rest.chars();
+    {
+        let mut chars = rest.chars();
+        return match (chars.next(), chars.next()) {
+            (Some(c), None) => Ok(ctrl(c)),
+            _ => Err(format!("unsupported key {spec}")),
+        };
+    }
+    let mut chars = spec.chars();
     match (chars.next(), chars.next()) {
-        (Some(c), None) => Ok(ctrl(c)),
+        (Some(c), None) if c.is_ascii() => Ok(c as u8),
         _ => Err(format!("unsupported key {spec}")),
     }
 }
@@ -99,6 +105,7 @@ pub fn format_key(byte: u8) -> String {
     match byte {
         0x1c => "C-\\".into(),
         0x00..=0x1f => format!("C-{}", ((byte + b'@') as char).to_ascii_lowercase()),
+        b if b.is_ascii_graphic() => (b as char).to_string(),
         other => format!("0x{other:02x}"),
     }
 }
@@ -116,13 +123,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_is_ctrl_backslash_then_ctrl_b() {
+    fn default_is_ctrl_b_then_q() {
         let chord = Chord::default();
-        assert_eq!(chord.first, 0x1c);
-        assert_eq!(chord.second, 0x02);
-        assert_eq!(parse_key("C-\\").unwrap(), 0x1c);
+        assert_eq!(chord.first, 0x02);
+        assert_eq!(chord.second, b'q');
         assert_eq!(parse_key("C-b").unwrap(), 0x02);
-        assert_eq!(format_chord(chord), "C-\\ then C-b");
+        assert_eq!(parse_key("q").unwrap(), b'q');
+        assert_eq!(format_chord(chord), "C-b then q");
     }
 
     #[test]
@@ -132,7 +139,7 @@ mod tests {
         assert_eq!(matcher.feed(b"hi", &mut out), Feed::Forward);
         assert_eq!(out, b"hi");
         out.clear();
-        assert_eq!(matcher.feed(&[0x1c, 0x02], &mut out), Feed::Detach);
+        assert_eq!(matcher.feed(&[0x02, b'q'], &mut out), Feed::Detach);
         assert!(out.is_empty());
     }
 
@@ -140,25 +147,25 @@ mod tests {
     fn first_byte_alone_is_held_then_flushed() {
         let mut matcher = Matcher::new(Chord::default());
         let mut out = Vec::new();
-        assert_eq!(matcher.feed(&[0x1c], &mut out), Feed::Forward);
+        assert_eq!(matcher.feed(&[0x02], &mut out), Feed::Forward);
         assert!(out.is_empty());
         matcher.flush_pending(&mut out);
-        assert_eq!(out, [0x1c]);
+        assert_eq!(out, [0x02]);
     }
 
     #[test]
     fn false_start_forwards_both_bytes() {
         let mut matcher = Matcher::new(Chord::default());
         let mut out = Vec::new();
-        assert_eq!(matcher.feed(&[0x1c, b'x'], &mut out), Feed::Forward);
-        assert_eq!(out, [0x1c, b'x']);
+        assert_eq!(matcher.feed(&[0x02, b'x'], &mut out), Feed::Forward);
+        assert_eq!(out, [0x02, b'x']);
     }
 
     #[test]
     fn prefix_then_y_is_copy_mode() {
         let mut matcher = Matcher::new(Chord::default());
         let mut out = Vec::new();
-        assert_eq!(matcher.feed(&[0x1c, b'y'], &mut out), Feed::Copy);
+        assert_eq!(matcher.feed(&[0x02, b'y'], &mut out), Feed::Copy);
         assert!(out.is_empty());
     }
 }
