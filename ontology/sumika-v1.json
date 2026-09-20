@@ -7,7 +7,7 @@
     },
     {
       "name": "Session",
-      "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. Not a pane, tab, kind, or headless run."
+      "description": "A named child process {name, argv, cwd} living in a PTY owned by Sumika. The daemon keeps a last VT frame for attach. Not a pane, tab, kind, or headless run."
     },
     {
       "name": "ConfiguredSession",

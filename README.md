@@ -7,7 +7,8 @@
 The terminal is the window. Sumika owns the processes.
 
 One chat on screen, full bleed. Closing the terminal does not kill the child.
-Attach is a raw PTY. A second attach steals. Status is a hook or `unknown` —
+Attach is a raw PTY. On attach, the client first sees the last VT frame the
+daemon kept. A second attach steals. Status is a hook or `unknown` —
 never a screen scrape.
 
 > **Status:** Phase 1 daily driver. One terminal window runs `sumika`; the

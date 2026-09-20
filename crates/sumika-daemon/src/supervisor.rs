@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::frame::Frame;
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use sumika_protocol::{ErrorCode, Request, Response, SessionInfo, Status};
 use tokio::sync::oneshot;
@@ -64,6 +65,7 @@ struct Session {
     status: Mutex<Status>,
     attach: Mutex<AttachState>,
     dest: Arc<Mutex<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>>,
+    frame: Arc<Frame>,
     live: Mutex<Option<Live>>,
 }
 
@@ -102,6 +104,10 @@ impl Supervisor {
             live.input.clone()
         };
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(64);
+        let snapshot = session.frame.snapshot();
+        if !snapshot.is_empty() {
+            let _ = output_tx.try_send(snapshot);
+        }
         let (generation, rx) = {
             let mut attach = session.attach.lock().expect("attach");
             if let Some(prev) = attach.cancel.take() {
@@ -314,6 +320,10 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
     let reader = pair.master.try_clone_reader()?;
     let mut writer = pair.master.take_writer()?;
     let dest = Arc::new(Mutex::new(None));
+    let frame = Arc::new(Frame::new(
+        DEFAULT_SIZE.cols as usize,
+        DEFAULT_SIZE.rows as usize,
+    ));
     let (input, mut input_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(64);
     let session = Arc::new(Session {
         name: name.clone(),
@@ -326,6 +336,7 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
             cancel: None,
         }),
         dest: dest.clone(),
+        frame: frame.clone(),
         live: Mutex::new(Some(Live {
             master: pair.master,
             child,
@@ -334,7 +345,7 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
     });
     std::thread::Builder::new()
         .name(format!("sumika-pty-{name}"))
-        .spawn(move || drain_pty(reader, dest))?;
+        .spawn(move || drain_pty(reader, dest, frame))?;
     std::thread::Builder::new()
         .name(format!("sumika-in-{name}"))
         .spawn(move || {
@@ -392,15 +403,17 @@ fn notify_unfocused(name: &str, status: Status) {
 fn drain_pty(
     mut reader: Box<dyn Read + Send>,
     dest: Arc<Mutex<Option<tokio::sync::mpsc::Sender<Vec<u8>>>>>,
+    frame: Arc<Frame>,
 ) {
     let mut buf = [0u8; 4096];
     loop {
         match reader.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => {
+                frame.feed(&buf[..n]);
                 let tx = dest.lock().expect("dest").clone();
                 if let Some(tx) = tx {
-                    let _ = tx.blocking_send(buf[..n].to_vec());
+                    let _ = tx.try_send(buf[..n].to_vec());
                 }
             }
             Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
