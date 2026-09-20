@@ -406,6 +406,8 @@ fn notify_unfocused(name: &str, status: Status) {
         && !path.is_empty()
     {
         let _ = std::fs::write(path, format!("{name}\t{label}\n"));
+    }
+    if !desktop_notify_enabled() {
         return;
     }
     let body = format!("{name} is {label}");
@@ -433,6 +435,12 @@ fn notify_unfocused(name: &str, status: Status) {
             .stderr(std::process::Stdio::null())
             .status();
     }
+}
+
+fn desktop_notify_enabled() -> bool {
+    std::env::var("SUMIKA_NOTIFY")
+        .ok()
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("os"))
 }
 
 fn notify_send(bin: &str, body: &str) {

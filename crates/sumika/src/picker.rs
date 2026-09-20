@@ -33,6 +33,8 @@ pub struct Picker {
 
 impl Picker {
     pub fn new(rows: Vec<SessionInfo>, jumps: HashMap<char, String>) -> Self {
+        let mut rows = rows;
+        sort_rows(&mut rows);
         Self {
             rows,
             selected: 0,
@@ -73,6 +75,7 @@ impl Picker {
     pub fn replace_rows(&mut self, rows: Vec<SessionInfo>) {
         let name = self.selected().map(|session| session.name.clone());
         self.rows = rows;
+        sort_rows(&mut self.rows);
         self.selected = name
             .and_then(|name| self.rows.iter().position(|session| session.name == name))
             .unwrap_or(0);
@@ -177,6 +180,34 @@ pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
         lines.push(format!("spc {key}   jump {name}"));
     }
     lines
+}
+
+fn status_rank(status: Status) -> u8 {
+    match status {
+        Status::Blocked => 0,
+        Status::Idle => 1,
+        Status::Running => 2,
+        Status::Unknown => 3,
+        Status::Dead => 4,
+    }
+}
+
+fn sort_rows(rows: &mut [SessionInfo]) {
+    rows.sort_by(|a, b| {
+        status_rank(a.status)
+            .cmp(&status_rank(b.status))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+}
+
+pub fn attention_line(rows: &[SessionInfo]) -> String {
+    rows.iter()
+        .filter(|session| {
+            !session.focused && matches!(session.status, Status::Blocked | Status::Idle)
+        })
+        .map(|session| format!("{} {}", session.name, glyph(session.status)))
+        .collect::<Vec<_>>()
+        .join("  ")
 }
 
 pub fn glyph(status: Status) -> &'static str {
@@ -308,5 +339,32 @@ mod tests {
         reserved.insert('?', "nope".into());
         let reserved_text = help_lines(&reserved, "C-b then q").join("\n");
         assert!(!reserved_text.contains("jump nope"), "{reserved_text}");
+    }
+
+    #[test]
+    fn blocked_sorts_first_and_attention_names_who_needs_you() {
+        let mut picker = Picker::new(
+            vec![
+                session("claude", Status::Running),
+                session("cursor", Status::Idle),
+                session("kiro", Status::Blocked),
+            ],
+            HashMap::new(),
+        );
+        let names: Vec<_> = picker.rows().iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["kiro", "cursor", "claude"]);
+        assert_eq!(attention_line(picker.rows()), "kiro !  cursor ·");
+        picker.replace_rows(vec![
+            session("claude", Status::Running),
+            session("cursor", Status::Idle),
+            session("kiro", Status::Blocked),
+        ]);
+        assert_eq!(picker.rows()[0].name, "kiro");
+        let mut focused = session("kiro", Status::Blocked);
+        focused.focused = true;
+        assert_eq!(
+            attention_line(&[focused, session("cursor", Status::Idle)]),
+            "cursor ·"
+        );
     }
 }

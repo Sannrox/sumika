@@ -160,10 +160,12 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `report NAME idle\|blocked\|running` | Hook attention status |
 | `hook-report` | Map a vendor hook payload on stdin to `report` (fail-open) |
 
-`sumika report` stores hook status on the session. If that session is not the
-focused attach, sumika notifies with the name and status — never PTY
-contents. macOS uses Notification Center; Linux uses `notify-send`. Absence
-of a report is `unknown`. Adapters fail open.
+`sumika report` stores hook status on the session. Attention is a picker
+concern: blocked rows sort first, then idle, running, unknown, dead. The
+status line names who needs you (`kiro !  cursor ·`). Desktop banners are
+off unless `SUMIKA_NOTIFY=os` (macOS Notification Center, Linux
+`notify-send`). `SUMIKA_NOTIFY_FILE` is the test sink. Focused sessions do
+not notify. Absence of a report is `unknown`. Adapters fail open.
 
 Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
 vendor settings; do not replace unrelated hooks. The child inherits
