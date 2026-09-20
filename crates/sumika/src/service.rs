@@ -86,7 +86,13 @@ pub fn install_launchd(bin: &Path) -> Result<PathBuf, String> {
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     let template = include_str!("../../../contrib/launchd/com.sumika.daemon.plist");
-    let body = template.replace("SUMIKA_BIN", &xml_escape(&bin.display().to_string()));
+    let path = std::env::var("PATH").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_default();
+        format!("/opt/homebrew/bin:/usr/local/bin:{home}/.local/bin:/usr/bin:/bin")
+    });
+    let body = template
+        .replace("SUMIKA_BIN", &xml_escape(&bin.display().to_string()))
+        .replace("SUMIKA_PATH", &xml_escape(&path));
     std::fs::write(&plist_path, body).map_err(|err| err.to_string())?;
     Ok(plist_path)
 }
@@ -225,6 +231,7 @@ mod tests {
         let template = include_str!("../../../contrib/launchd/com.sumika.daemon.plist");
         assert!(template.contains(LAUNCHD_LABEL));
         assert!(template.contains("SUMIKA_BIN"));
+        assert!(template.contains("SUMIKA_PATH"));
         assert!(template.contains("daemon"));
     }
 

@@ -9,6 +9,11 @@
 		<string>SUMIKA_BIN</string>
 		<string>daemon</string>
 	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>SUMIKA_PATH</string>
+	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>

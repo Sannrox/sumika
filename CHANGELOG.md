@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Picker jump keys require Space first (`spc k`), so `j`/`k` always move.
+  Detach restores the client screen (leave alt-screen). SIGINT/SIGQUIT are
+  ignored while the TUI is up so `C-\\` is the chord, not process quit.
+  launchd inherits a login PATH so `start --all` can spawn Homebrew/local
+  agent binaries.
 - Linux daily driver: systemd `--user` unit owns `sumika daemon`, and
   unfocused `idle`/`blocked` uses `notify-send`. `doctor` reports whether
   the user unit is active.

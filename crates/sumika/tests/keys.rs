@@ -28,7 +28,7 @@ key = "k"
     let text = String::from_utf8(out.stdout).unwrap();
     assert!(text.contains("j/k"), "{text}");
     assert!(text.contains("enter"), "{text}");
-    assert!(text.contains("k       jump kiro"), "{text}");
+    assert!(text.contains("spc k   jump kiro"), "{text}");
     assert!(text.contains("C-\\ then C-b"), "{text}");
     assert!(text.contains("?       toggle this help"), "{text}");
 }

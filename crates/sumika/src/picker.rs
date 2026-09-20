@@ -11,6 +11,7 @@ pub enum Input {
     Quit,
     Jump(char),
     Help,
+    Leader,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,7 @@ pub struct Picker {
     selected: usize,
     jumps: HashMap<char, String>,
     help_open: bool,
+    pending_leader: bool,
 }
 
 impl Picker {
@@ -36,6 +38,7 @@ impl Picker {
             selected: 0,
             jumps,
             help_open: false,
+            pending_leader: false,
         }
     }
 
@@ -45,6 +48,10 @@ impl Picker {
 
     pub fn help_open(&self) -> bool {
         self.help_open
+    }
+
+    pub fn leader_pending(&self) -> bool {
+        self.pending_leader
     }
 
     pub fn rows(&self) -> &[SessionInfo] {
@@ -80,8 +87,21 @@ impl Picker {
                 }
                 _ => Action::None,
             }
+        } else if self.pending_leader {
+            self.pending_leader = false;
+            match input {
+                Input::Leader | Input::Quit => Action::None,
+                Input::Jump(key) => self.jump(key),
+                other => self.handle_list(other),
+            }
+        } else if matches!(input, Input::Leader) {
+            self.pending_leader = true;
+            Action::None
         } else {
-            self.handle_list(input)
+            match input {
+                Input::Jump(_) => Action::None,
+                other => self.handle_list(other),
+            }
         }
     }
 
@@ -110,17 +130,20 @@ impl Picker {
                 }
                 _ => Action::None,
             },
-            Input::Jump(key) => {
-                let Some(name) = self.jumps.get(&key).cloned() else {
-                    return Action::None;
-                };
-                if let Some(index) = self.rows.iter().position(|session| session.name == name) {
-                    self.selected = index;
-                    Action::Attach(name)
-                } else {
-                    Action::None
-                }
-            }
+            Input::Jump(key) => self.jump(key),
+            Input::Leader => Action::None,
+        }
+    }
+
+    fn jump(&mut self, key: char) -> Action {
+        let Some(name) = self.jumps.get(&key).cloned() else {
+            return Action::None;
+        };
+        if let Some(index) = self.rows.iter().position(|session| session.name == name) {
+            self.selected = index;
+            Action::Attach(name)
+        } else {
+            Action::None
         }
     }
 
@@ -140,6 +163,7 @@ pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
         "q       leave picker".into(),
         "r       restart dead row".into(),
         "?       toggle this help".into(),
+        "spc     then jump key".into(),
         format!("{detach:<8} detach (while attached)"),
         "C-\\ y   copy mode (while attached)".into(),
         "! · … ? ✗   blocked idle running unknown dead".into(),
@@ -150,7 +174,7 @@ pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
         if *key == '?' {
             continue;
         }
-        lines.push(format!("{key}       jump {name}"));
+        lines.push(format!("spc {key}   jump {name}"));
     }
     lines
 }
@@ -246,6 +270,10 @@ mod tests {
             ],
             jumps,
         );
+        assert_eq!(picker.handle(Input::Jump('k')), Action::None);
+        assert_eq!(picker.selected().unwrap().name, "claude");
+        assert_eq!(picker.handle(Input::Leader), Action::None);
+        assert!(picker.leader_pending());
         assert_eq!(
             picker.handle(Input::Jump('k')),
             Action::Attach("kiro".into())
@@ -273,7 +301,7 @@ mod tests {
         let text = help_lines(&jumps, "C-\\ then C-b").join("\n");
         assert!(text.contains("j/k"));
         assert!(text.contains("enter"));
-        assert!(text.contains("k       jump kiro"));
+        assert!(text.contains("spc k   jump kiro"));
         assert!(text.contains("C-\\ then C-b"));
         assert!(text.contains("?       toggle this help"));
         let mut reserved = HashMap::new();
