@@ -1,0 +1,4 @@
+# Merge into ~/.codex/config.toml. Do not replace the rest of the file.
+# Codex notify receives {"type":"agent-turn-complete"} or
+# {"type":"approval-requested"} on stdin.
+notify = ["sumika", "hook-report"]
