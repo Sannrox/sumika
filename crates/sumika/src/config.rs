@@ -11,6 +11,8 @@ use serde::Deserialize;
 pub struct Config {
     #[serde(default)]
     pub sessions: Vec<SessionSpec>,
+    #[serde(default)]
+    pub detach_chord: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -95,6 +97,13 @@ impl Config {
         self.sessions.iter().find(|session| session.name == name)
     }
 
+    pub fn detach_chord(&self) -> Result<crate::chord::Chord, ConfigError> {
+        match &self.detach_chord {
+            None => Ok(crate::chord::Chord::default()),
+            Some(keys) => crate::chord::parse_chord(keys).map_err(ConfigError::Invalid),
+        }
+    }
+
     pub fn jump_keys(&self) -> HashMap<char, String> {
         let mut jumps = HashMap::new();
         for session in &self.sessions {
@@ -129,6 +138,9 @@ impl Config {
                     session.name
                 )));
             }
+        }
+        if self.detach_chord.is_some() {
+            self.detach_chord()?;
         }
         Ok(())
     }

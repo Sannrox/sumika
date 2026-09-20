@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Detach chord (default `Ctrl-\` then `Ctrl-b`) returns from attach to the
+  picker without forwarding those bytes or killing the child.
 - Bare `sumika` opens a full-screen picker (`j`/`k`/Enter/`q`, configured `key`
   jumps, `r` restarts a dead row from config). Children stay running when the
   picker exits.
