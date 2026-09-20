@@ -10,10 +10,19 @@ One chat on screen, full bleed. Closing the terminal does not kill the child.
 Attach is a raw PTY. A second attach steals. Status is a hook or `unknown` —
 never a screen scrape.
 
-> **Status:** Phase 1 picker. One PTY survives detach, and bare `sumika` opens
-> the session list. This is pre-1.0 software, not published to crates.io.
-> Build from source. launchd and hook attention land in later issues; see
+> **Status:** Phase 1 daily driver. One terminal window runs `sumika`; the
+> daemon is the workspace. This is pre-1.0 software, not published to
+> crates.io. Build from source. Hook attention lands later; see
 > [VISION.md](VISION.md).
+
+## Daily driver
+
+Use one terminal window whose command is `sumika`. The picker is how you
+jump. Keys live in that TUI, not in the terminal emulator: `j`/`k`, Enter,
+`q`, configured jump keys, `r` on a dead row, and the detach chord
+(default `Ctrl-\` then `Ctrl-b`) back to the picker. The launchd user agent
+owns the daemon; the daemon is the workspace. Closing the window leaves
+every child running. Clicking a notification is not required.
 
 ## Why
 

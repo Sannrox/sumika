@@ -33,4 +33,4 @@ Sumika does not resume a vendor chat by magic. It keeps the process. After reboo
 
 ## Path
 
-Phase 0 proves one PTY survives detach. Phase 1 is the daily driver for five agents, including Kiro, with a picker and launchd. Phase 2 is hook attention. Phase 3 is the terminal as a frame. Phase 4 is last-frame snapshot. Pane splits are not on the path.
+Phase 0 proves one PTY survives detach. Phase 1 is the daily driver for five agents, including Kiro, with a picker and launchd. Phase 2 is hook attention. Phase 3 is the terminal as a frame: one window whose command is `sumika`, and the daemon is the workspace. Notification click is optional later. Phase 4 is last-frame snapshot. Pane splits are not on the path.
