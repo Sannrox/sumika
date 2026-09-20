@@ -22,6 +22,10 @@
       "description": "The exclusive focused client of one Session. Bytes are a raw PTY. A second Attach steals. Detach leaves the child."
     },
     {
+      "name": "Picker",
+      "description": "The full-screen list used to jump between Sessions. Not a layout, sidebar, or multiplexer."
+    },
+    {
       "name": "Report",
       "description": "A hook-originated attention signal for a Session: idle, blocked, or running. Absence is unknown. Not a screen scrape."
     },
@@ -41,6 +45,12 @@
       "name": "focuses",
       "description": "An Attach is the exclusive focused client of one Session. A new Attach steals.",
       "domain": "Attach",
+      "range": "Session"
+    },
+    {
+      "name": "jumps_to",
+      "description": "A Picker jumps to a Session by selecting it and attaching. q leaves the Picker; children stay.",
+      "domain": "Picker",
       "range": "Session"
     },
     {
@@ -83,6 +93,18 @@
     },
     {
       "subject": "Attach",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "Picker",
+      "source": "sumika",
+      "locator": "CONTEXT.md",
+      "confidence": 1.0
+    },
+    {
+      "subject": "jumps_to",
       "source": "sumika",
       "locator": "CONTEXT.md",
       "confidence": 1.0

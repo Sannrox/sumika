@@ -10,9 +10,10 @@ One chat on screen, full bleed. Closing the terminal does not kill the child.
 Attach is a raw PTY. A second attach steals. Status is a hook or `unknown` —
 never a screen scrape.
 
-> **Status:** Phase 0. One PTY survives detach. This is pre-1.0 software, not
-> published to crates.io. Build from source. The picker, launchd, and hook
-> attention land in later phases; see [VISION.md](VISION.md).
+> **Status:** Phase 1 picker. One PTY survives detach, and bare `sumika` opens
+> the session list. This is pre-1.0 software, not published to crates.io.
+> Build from source. launchd and hook attention land in later issues; see
+> [VISION.md](VISION.md).
 
 ## Why
 
@@ -95,16 +96,24 @@ argv = ["codex"]
 key = "x"
 ```
 
-`key` is stored for the picker. It is not used by `start`.
+`key` is a one-character jump in the picker (`c`, `g`, `k`, `p`, `x` in the
+sample). `j`/`k` still move unless that character is a jump key; use the arrow
+keys to move in that case.
 
 ## CLI
 
+Bare `sumika` opens a full-screen picker of daemon sessions. `j`/`k` move,
+Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
+children. Configured `key` values jump. `r` on a dead row starts that session
+from config.
+
 ```text
-sumika [--sock PATH] [--config PATH] <COMMAND>
+sumika [--sock PATH] [--config PATH] [COMMAND]
 ```
 
 | Command | Purpose |
 | --- | --- |
+| *(none)* | Open the session picker |
 | `daemon` | Run the PTY supervisor |
 | `ping` | Check that the daemon is reachable |
 | `start NAME [-- ARGV...]` | Spawn a named session (argv from config when omitted) |

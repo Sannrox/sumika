@@ -1,34 +1,42 @@
-mod config;
-
+use std::fs::File;
 use std::io::{self, IsTerminal, Read, Write};
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::execute;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+    size as terminal_size,
+};
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+use ratatui::style::{Modifier, Style};
+use ratatui::widgets::{Block, List, ListItem, ListState};
+use sumika::config::{SessionSpec, load, resolve_config_path};
+use sumika::picker::{Action, Input, Picker, liveness};
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
-    EXIT_OK, EXIT_STOLEN, EXIT_USAGE, Request, Response, Status, default_socket_path,
+    EXIT_OK, EXIT_STOLEN, EXIT_UNREACHABLE, EXIT_USAGE, Request, Response, Status,
+    default_socket_path,
 };
+
+const EXIT_TERMINATED: i32 = 143;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::signal::unix::{SignalKind, signal};
 
-use crate::config::{SessionSpec, load, resolve_config_path};
-
 #[derive(Parser)]
-#[command(
-    name = "sumika",
-    about = "Session habitat for CLI agents",
-    version,
-    arg_required_else_help = true
-)]
+#[command(name = "sumika", about = "Session habitat for CLI agents", version)]
 struct Cli {
     #[arg(long, env = "SUMIKA_SOCK")]
     sock: Option<PathBuf>,
     #[arg(long, env = "SUMIKA_CONFIG")]
     config: Option<PathBuf>,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -65,16 +73,20 @@ async fn main() -> ExitCode {
     let cli = Cli::parse();
     let sock = cli.sock.unwrap_or_else(default_socket_path);
     match cli.command {
-        Command::Daemon => match run_daemon(sock).await {
+        Some(Command::Daemon) => match run_daemon(sock).await {
             Ok(()) => ExitCode::from(EXIT_OK as u8),
             Err(err) => {
                 eprintln!("{err:#}");
                 ExitCode::from(EXIT_USAGE as u8)
             }
         },
-        other => {
+        Some(other) => {
             let client = Client::new(sock);
             ExitCode::from(run_client(client, cli.config, other).await as u8)
+        }
+        None => {
+            let client = Client::new(sock);
+            ExitCode::from(run_picker(client, cli.config).await as u8)
         }
     }
 }
@@ -101,11 +113,191 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             argv,
         } => start_command(&client, config, name, all, cwd, argv).await,
         Command::List { json } => print_rpc(&client, &Request::List, json).await,
-        Command::Attach { name } => attach(client, name).await,
+        Command::Attach { name } => attach(&client, name).await,
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
     }
+}
+
+async fn run_picker(client: Client, config: Option<PathBuf>) -> i32 {
+    if !io::stdin().is_terminal() {
+        eprintln!("picker requires a terminal");
+        return EXIT_USAGE;
+    }
+    let config_path = resolve_config_path(config);
+    let jumps = load(&config_path)
+        .map(|config| config.jump_keys())
+        .unwrap_or_default();
+    let rows = match list_sessions(&client).await {
+        Ok(rows) => rows,
+        Err(err) => {
+            eprintln!("{err}");
+            return EXIT_UNREACHABLE;
+        }
+    };
+    let mut picker = Picker::new(rows, jumps);
+    loop {
+        let action = match run_picker_screen(&client, &mut picker).await {
+            Ok(action) => action,
+            Err(err) => {
+                eprintln!("{err}");
+                return EXIT_USAGE;
+            }
+        };
+        match action {
+            Action::Quit => return EXIT_OK,
+            Action::None => {}
+            Action::Attach(name) => {
+                let code = attach(&client, name).await;
+                if code == EXIT_UNREACHABLE || code == EXIT_TERMINATED {
+                    return code;
+                }
+            }
+            Action::Restart(name) => {
+                if let Err(err) = restart_session(&client, &config_path, &name).await {
+                    eprintln!("{err}");
+                }
+            }
+        }
+    }
+}
+
+struct PickerScreen;
+
+impl PickerScreen {
+    fn enter() -> io::Result<Self> {
+        enable_raw_mode()?;
+        if let Err(err) = execute!(io::stdout(), EnterAlternateScreen) {
+            let _ = disable_raw_mode();
+            return Err(err);
+        }
+        Ok(Self)
+    }
+}
+
+impl Drop for PickerScreen {
+    fn drop(&mut self) {
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = disable_raw_mode();
+        let _ = io::stdout().flush();
+    }
+}
+
+async fn run_picker_screen(client: &Client, picker: &mut Picker) -> io::Result<Action> {
+    let _screen = PickerScreen::enter()?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+    let mut term = signal(SignalKind::terminate()).ok();
+    loop {
+        match tokio::time::timeout(Duration::from_secs(2), list_sessions(client)).await {
+            Ok(Ok(rows)) => picker.replace_rows(rows),
+            Ok(Err(err)) => return Err(io::Error::other(err)),
+            Err(_) => {}
+        }
+        terminal.draw(|frame| {
+            let items: Vec<ListItem> = picker
+                .rows()
+                .iter()
+                .map(|session| {
+                    ListItem::new(format!("{}\t{}", session.name, liveness(session.status)))
+                })
+                .collect();
+            let mut state = ListState::default()
+                .with_selected((!picker.rows().is_empty()).then_some(picker.selected_index()));
+            frame.render_stateful_widget(
+                List::new(items)
+                    .block(Block::bordered().title("sumika"))
+                    .highlight_symbol("> ")
+                    .highlight_style(Style::default().add_modifier(Modifier::REVERSED)),
+                frame.area(),
+                &mut state,
+            );
+        })?;
+        tokio::select! {
+            _ = async {
+                match term.as_mut() {
+                    Some(signal) => { signal.recv().await; }
+                    None => std::future::pending::<()>().await,
+                }
+            } => return Ok(Action::Quit),
+            polled = tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(400))) => {
+                if !polled.map_err(io::Error::other)?? {
+                    continue;
+                }
+            }
+        }
+        while let Event::Key(key) = event::read()? {
+            if key.kind != KeyEventKind::Press {
+                if !event::poll(Duration::ZERO)? {
+                    break;
+                }
+                continue;
+            }
+            let input = match key.code {
+                KeyCode::Enter => Input::Attach,
+                KeyCode::Esc | KeyCode::Char('q') => Input::Quit,
+                KeyCode::Char('r') => Input::Restart,
+                KeyCode::Down => Input::Down,
+                KeyCode::Up => Input::Up,
+                KeyCode::Char(c) if picker.has_jump(c) => Input::Jump(c),
+                KeyCode::Char('j') => Input::Down,
+                KeyCode::Char('k') => Input::Up,
+                _ => {
+                    if !event::poll(Duration::ZERO)? {
+                        break;
+                    }
+                    continue;
+                }
+            };
+            let action = picker.handle(input);
+            if action != Action::None {
+                while event::poll(Duration::ZERO)? {
+                    let _ = event::read()?;
+                }
+                return Ok(action);
+            }
+            if !event::poll(Duration::ZERO)? {
+                break;
+            }
+        }
+    }
+}
+
+async fn list_sessions(client: &Client) -> Result<Vec<sumika_protocol::SessionInfo>, String> {
+    let response = client
+        .rpc(&Request::List)
+        .await
+        .map_err(|err| err.to_string())?;
+    if !response.ok {
+        return Err(response
+            .error
+            .map(|err| err.message)
+            .unwrap_or_else(|| "list failed".into()));
+    }
+    Ok(response.sessions.unwrap_or_default())
+}
+
+async fn restart_session(
+    client: &Client,
+    config_path: &std::path::Path,
+    name: &str,
+) -> Result<(), String> {
+    let spec = resolve_start(config_path, name, None, Vec::new())?;
+    let response = client
+        .rpc(&Request::Start {
+            name: name.to_string(),
+            argv: spec.argv,
+            cwd: spec.cwd,
+        })
+        .await
+        .map_err(|err| err.to_string())?;
+    if !response.ok {
+        return Err(response
+            .error
+            .map(|err| err.message)
+            .unwrap_or_else(|| "start failed".into()));
+    }
+    Ok(())
 }
 
 async fn start_command(
@@ -302,7 +494,7 @@ impl Drop for RawGuard {
     }
 }
 
-async fn attach(client: Client, name: String) -> i32 {
+async fn attach(client: &Client, name: String) -> i32 {
     let (response, stream) = match client.attach(&name).await {
         Ok(value) => value,
         Err(err) => {
@@ -329,9 +521,9 @@ async fn attach(client: Client, name: String) -> i32 {
         None
     };
     if raw && let Ok((cols, rows)) = terminal_size() {
-        let _ = resize(&client, &name, cols, rows).await;
+        let _ = resize(client, &name, cols, rows).await;
     }
-    proxy_tty(&client, &name, stream, raw).await
+    proxy_tty(client, &name, stream, raw).await
 }
 
 async fn proxy_tty(client: &Client, name: &str, stream: tokio::net::UnixStream, raw: bool) -> i32 {
@@ -341,7 +533,7 @@ async fn proxy_tty(client: &Client, name: &str, stream: tokio::net::UnixStream, 
         None
     };
     let mut term = signal(SignalKind::terminate()).ok();
-    let mut stdin_rx = spawn_stdin_thread();
+    let mut stdin_pump = spawn_stdin_thread();
     let (mut reader, mut writer) = stream.into_split();
     let mut stdout = tokio::io::stdout();
     let pump_out = async {
@@ -360,7 +552,7 @@ async fn proxy_tty(client: &Client, name: &str, stream: tokio::net::UnixStream, 
         }
     };
     let pump_in = async {
-        while let Some(bytes) = stdin_rx.recv().await {
+        while let Some(bytes) = stdin_pump.rx.recv().await {
             if writer.write_all(&bytes).await.is_err() {
                 return EXIT_STOLEN;
             }
@@ -388,7 +580,7 @@ async fn proxy_tty(client: &Client, name: &str, stream: tokio::net::UnixStream, 
                     Some(signal) => { signal.recv().await; }
                     None => std::future::pending::<()>().await,
                 }
-            } => return EXIT_OK,
+            } => return EXIT_TERMINATED,
         }
     }
 }
@@ -410,14 +602,29 @@ async fn map_attach_eof(client: &Client, name: &str, code: i32) -> i32 {
     }
 }
 
-fn spawn_stdin_thread() -> tokio::sync::mpsc::Receiver<Vec<u8>> {
+struct StdinPump {
+    rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    _cancel: File,
+}
+
+fn spawn_stdin_thread() -> StdinPump {
     let (tx, rx) = tokio::sync::mpsc::channel(32);
+    let (cancel_r, cancel_w) = pipe_pair();
+    let stdin_fd = unsafe { libc::dup(libc::STDIN_FILENO) };
+    if stdin_fd < 0 {
+        panic!("dup stdin: {}", io::Error::last_os_error());
+    }
+    let mut stdin = unsafe { File::from_raw_fd(stdin_fd) };
+    let cancel_fd = cancel_r.as_raw_fd();
     let _ = std::thread::Builder::new()
         .name("sumika-stdin".into())
         .spawn(move || {
-            let mut stdin = io::stdin();
+            let _cancel_r = cancel_r;
             let mut buf = [0u8; 4096];
             loop {
+                if !wait_stdin_or_cancel(stdin.as_raw_fd(), cancel_fd) {
+                    break;
+                }
                 match stdin.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
@@ -429,7 +636,50 @@ fn spawn_stdin_thread() -> tokio::sync::mpsc::Receiver<Vec<u8>> {
                 }
             }
         });
-    rx
+    StdinPump {
+        rx,
+        _cancel: cancel_w,
+    }
+}
+
+fn pipe_pair() -> (File, File) {
+    let mut fds = [0; 2];
+    let rc = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    if rc != 0 {
+        panic!("pipe: {}", io::Error::last_os_error());
+    }
+    let reader = unsafe { File::from_raw_fd(fds[0]) };
+    let writer = unsafe { File::from_raw_fd(fds[1]) };
+    (reader, writer)
+}
+
+fn wait_stdin_or_cancel(stdin_fd: i32, cancel_fd: i32) -> bool {
+    let mut fds = [
+        libc::pollfd {
+            fd: stdin_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: cancel_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+    loop {
+        let rc = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, -1) };
+        if rc < 0 {
+            let err = io::Error::last_os_error();
+            if err.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return false;
+        }
+        if rc == 0 {
+            return false;
+        }
+        return fds[1].revents == 0;
+    }
 }
 
 fn resolve_cwd(cwd: Option<PathBuf>) -> io::Result<String> {
