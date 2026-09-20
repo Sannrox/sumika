@@ -60,7 +60,7 @@ enum Command {
         json: bool,
     },
     Attach {
-        name: String,
+        name: Option<String>,
     },
     Kill {
         name: String,
@@ -150,7 +150,23 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             argv,
         } => start_command(&client, config, name, all, cwd, argv).await,
         Command::List { json } => print_rpc(&client, &Request::List, json).await,
-        Command::Attach { name } => attach(&client, name, load_chord(config.as_deref())).await,
+        Command::Attach { name } => {
+            let name = match name {
+                Some(name) => name,
+                None => match sumika::last::recall() {
+                    Ok(Some(name)) => name,
+                    Ok(None) => {
+                        eprintln!("no last-attached session; pass a name or open the picker");
+                        return EXIT_USAGE;
+                    }
+                    Err(err) => {
+                        eprintln!("{err}");
+                        return EXIT_USAGE;
+                    }
+                },
+            };
+            attach(&client, name, load_chord(config.as_deref())).await
+        }
         Command::Kill { name, force } => {
             print_rpc(&client, &Request::Kill { name, force }, false).await
         }
@@ -638,6 +654,7 @@ async fn attach(client: &Client, name: String, chord: Chord) -> i32 {
         }
         return response.exit_code();
     }
+    let _ = sumika::last::remember(&name);
     let raw = io::stdin().is_terminal();
     let _guard = if raw {
         match RawGuard::enable() {
