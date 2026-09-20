@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "sumika idle on agent stop",
+      "trigger": "Agent Stop",
+      "action": {
+        "type": "command",
+        "command": "sumika hook-report"
+      }
+    }
+  ]
+}

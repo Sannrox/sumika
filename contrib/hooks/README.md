@@ -1,4 +1,4 @@
-# Claude and Codex report adapters
+# Vendor report adapters
 
 These snippets call `sumika hook-report`, which maps a vendor hook payload to
 `sumika report` and always exits 0. A broken or unknown payload does not
@@ -7,7 +7,8 @@ change session status and does not kill the child.
 The daemon sets `SUMIKA_SESSION` to the session name when it starts the child.
 `hook-report` uses that name. Do not scrape the PTY.
 
-Do not hook Claude `idle_prompt` or `auth_success`.
+Do not hook Claude `idle_prompt` or `auth_success`. Do not invent a Kiro
+approval event; Kiro approval stays unknown.
 
 ## Install (merge, do not replace)
 
@@ -30,3 +31,24 @@ removing other groups.
 If you use the Codex `notify` command instead of (or in addition to) Stop,
 merge `codex.notify.toml` into `~/.codex/config.toml` as an extra `notify`
 entry. Do not drop other `notify` commands already listed.
+
+### Grok
+
+Copy `grok.hooks.json` into `~/.grok/hooks/` (or the project `.grok/hooks/`).
+It adds `Stop` (idle) and `Notification` (blocked). Merge those groups if a
+file already exists; do not delete other events.
+
+### Kiro
+
+CLI: merge the `stop` group from `kiro-cli.hooks.json` into the existing
+kiro-cli agent hooks. IDE: merge the `Agent Stop` hook from `kiro.hooks.json`
+into `.kiro/hooks/` without removing other files. There is no approval
+snippet; Kiro has no documented approval event.
+
+### Pi
+
+Copy `pi/sumika-report.ts` into `~/.pi/agent/extensions/` (or the project
+`.pi/extensions/`). It reports idle on `agent_end` / `agent_settled`. It
+reports blocked on `permissions:ask` only when that event fires (the
+`@pi-lab/permissions` extension). Without that extension, approval stays
+unknown.
