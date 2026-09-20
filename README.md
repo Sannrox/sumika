@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **sumika** (棲みか, habitat) is a session switcher for interactive CLI agents.
-Ghostty is the window. Sumika owns the processes.
+The terminal is the window. Sumika owns the processes.
 
 One chat on screen, full bleed. Closing the terminal does not kill the child.
 Attach is a raw PTY. A second attach steals. Status is a hook or `unknown` —
