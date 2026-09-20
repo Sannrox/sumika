@@ -104,9 +104,9 @@ impl Supervisor {
             live.input.clone()
         };
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(64);
-        let snapshot = session.frame.snapshot();
-        if !snapshot.is_empty() {
-            let _ = output_tx.try_send(snapshot);
+        let replay = session.frame.replay();
+        if !replay.is_empty() {
+            let _ = output_tx.try_send(replay);
         }
         let (generation, rx) = {
             let mut attach = session.attach.lock().expect("attach");

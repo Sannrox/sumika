@@ -92,3 +92,88 @@ async fn attach_replays_last_frame_before_new_input() {
         "last frame missing {marker}: {seen:?}"
     );
 }
+
+#[tokio::test]
+async fn attach_replays_lines_that_left_the_viewport() {
+    let harness = Harness::start().await;
+    let start = harness
+        .client
+        .rpc(&Request::Start {
+            name: "demo".into(),
+            argv: vec![
+                "python3".into(),
+                "-c".into(),
+                "import time\nprint('SCROLL-EARLY-UNIQUE', flush=True)\nfor i in range(40):\n    print(f'SCROLL-{i:03}-LINE', flush=True)\nprint('SCROLL-LATE-UNIQUE', flush=True)\ntime.sleep(60)".into(),
+            ],
+            cwd: None,
+        })
+        .await
+        .expect("start");
+    assert!(start.ok, "{start:?}");
+    tokio::time::sleep(Duration::from_millis(400)).await;
+
+    let (resp, mut stream) = harness.client.attach("demo").await.expect("attach");
+    assert!(resp.ok, "{resp:?}");
+    let seen = read_until_contains(&mut stream, "SCROLL-LATE-UNIQUE").await;
+    assert!(
+        seen.contains("SCROLL-EARLY-UNIQUE"),
+        "earlier line missing from attach replay: {seen:?}"
+    );
+}
+
+#[tokio::test]
+async fn stalled_client_does_not_block_the_child() {
+    let harness = Harness::start().await;
+    let start = harness
+        .client
+        .rpc(&Request::Start {
+            name: "demo".into(),
+            argv: vec![
+                "python3".into(),
+                "-c".into(),
+                "import time\nprint('STALL-A-UNIQUE', flush=True)\ntime.sleep(0.2)\nfor i in range(200):\n    print(f'pad-{i}', flush=True)\nprint('STALL-B-UNIQUE', flush=True)\ntime.sleep(60)".into(),
+            ],
+            cwd: None,
+        })
+        .await
+        .expect("start");
+    assert!(start.ok, "{start:?}");
+
+    let (first_resp, _first) = harness.client.attach("demo").await.expect("first attach");
+    assert!(first_resp.ok, "{first_resp:?}");
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
+    let (resp, mut stream) = harness.client.attach("demo").await.expect("steal");
+    assert!(resp.ok, "{resp:?}");
+    let seen = read_until_contains(&mut stream, "STALL-B-UNIQUE").await;
+    assert!(
+        seen.contains("STALL-B-UNIQUE"),
+        "child stalled behind unread attach: {seen:?}"
+    );
+}
+
+async fn read_until_contains(stream: &mut (impl AsyncReadExt + Unpin), token: &str) -> String {
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            let seen = String::from_utf8_lossy(&buf).into_owned();
+            panic!("did not see {token:?} in {seen:?}");
+        }
+        let n = timeout(remaining, stream.read(&mut chunk))
+            .await
+            .unwrap_or_else(|_| panic!("read timeout before {token:?}"))
+            .expect("read");
+        if n == 0 {
+            let seen = String::from_utf8_lossy(&buf).into_owned();
+            panic!("EOF before {token:?} in {seen:?}");
+        }
+        buf.extend_from_slice(&chunk[..n]);
+        let seen = String::from_utf8_lossy(&buf).into_owned();
+        if seen.contains(token) {
+            return seen;
+        }
+    }
+}

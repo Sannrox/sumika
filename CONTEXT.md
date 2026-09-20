@@ -10,6 +10,7 @@ _Avoid_: agentsd, multiplexer, workspace, tmux, Herdr
 
 **Session**:
 A named child process `{name, argv, cwd}` living in a PTY owned by sumika.
+The daemon keeps a last VT frame and a bounded line ring for attach.
 _Avoid_: pane, tab, kind, run, agent type
 
 **Attach**:
