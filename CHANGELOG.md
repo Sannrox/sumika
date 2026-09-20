@@ -18,3 +18,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   steals. Dead sessions stay dead until `start`.
 - Project-owned agent Skills under `.agents/skills/` (shape, frontier,
   deliver, verify, ontology, docs). Personal Skills remain gitignored.
+- Decision on vendor resume-by-id flags after reboot
+  ([`docs/decisions/0002-vendor-resume-flags.md`](docs/decisions/0002-vendor-resume-flags.md)).
