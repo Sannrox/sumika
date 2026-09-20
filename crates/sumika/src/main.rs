@@ -289,7 +289,15 @@ async fn hook_report(client: &Client) -> i32 {
     else {
         return EXIT_OK;
     };
-    let _ = client.rpc(&Request::Report { name, status }).await;
+    let _ = client
+        .rpc(&Request::Report {
+            name: name.clone(),
+            status,
+        })
+        .await;
+    if let Some(hint) = sumika::hook_report::hint_from_payload(&payload, status) {
+        let _ = sumika::resume::remember(&name, &hint);
+    }
     EXIT_OK
 }
 
@@ -574,7 +582,7 @@ async fn restart_session(
     let response = client
         .rpc(&Request::Start {
             name: name.to_string(),
-            argv: spec.argv,
+            argv: with_resume(name, spec.argv),
             cwd: spec.cwd,
         })
         .await
@@ -586,6 +594,13 @@ async fn restart_session(
             .unwrap_or_else(|| "start failed".into()));
     }
     Ok(())
+}
+
+fn with_resume(name: &str, argv: Vec<String>) -> Vec<String> {
+    match sumika::resume::recall(name) {
+        Ok(Some(hint)) => sumika::resume::apply(argv, &hint),
+        _ => argv,
+    }
 }
 
 async fn start_command(
@@ -621,8 +636,8 @@ async fn start_command(
     print_rpc(
         client,
         &Request::Start {
-            name,
-            argv: spec.argv,
+            name: name.clone(),
+            argv: with_resume(&name, spec.argv),
             cwd: spec.cwd,
         },
         false,
@@ -650,8 +665,8 @@ async fn start_all(client: &Client, config_path: &std::path::Path, cwd: Option<P
         let exit = print_rpc(
             client,
             &Request::Start {
-                name: session.name,
-                argv: spec.argv,
+                name: session.name.clone(),
+                argv: with_resume(&session.name, spec.argv),
                 cwd: spec.cwd,
             },
             false,
