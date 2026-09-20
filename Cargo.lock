@@ -1396,6 +1396,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
+ "tracing",
  "tracing-subscriber",
 ]
 

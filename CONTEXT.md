@@ -6,6 +6,7 @@ Sumika is the habitat that holds interactive CLI agent sessions so they outlive 
 
 **Sumika**:
 The habitat. A local daemon plus the command that attaches to it.
+The daemon writes one operator log without PTY contents.
 _Avoid_: agentsd, multiplexer, workspace, tmux, Herdr
 
 **Session**:

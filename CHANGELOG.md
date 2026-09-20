@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Operator daemon log (`$XDG_STATE_HOME/sumika/daemon.log`, override
+  `SUMIKA_LOG` / `SUMIKA_STATE_DIR`): listen, start, steal, reap, report,
+  notify, errors. Never PTY contents.
 - Bounded line-ring scrollback on attach (10k lines), replayed before the
   last VT frame. Detached output still does not block the child.
 - Last-frame snapshot on attach: the client first sees the last VT frame the
