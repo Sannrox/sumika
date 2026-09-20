@@ -46,7 +46,8 @@ cargo clippy --all-targets --locked -- -D warnings
 5. Dead stays dead until `start`. No auto-respawn.
 6. One installed binary.
 
-Agent instructions: [AGENTS.md](AGENTS.md).
+Agent instructions: [AGENTS.md](AGENTS.md). Project-owned Skills live under
+[`.agents/skills/`](.agents/skills/). Personal Skills stay gitignored.
 
 ## Pull requests
 

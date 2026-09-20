@@ -12,3 +12,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phase 0 habitat: a Unix-socket daemon owns PTYs, and `sumika` starts, lists,
   attaches, and kills named sessions. Detach leaves the child. A second attach
   steals. Dead sessions stay dead until `start`.
+- Project-owned agent Skills under `.agents/skills/` (shape, frontier,
+  deliver, verify, ontology, docs). Personal Skills remain gitignored.
