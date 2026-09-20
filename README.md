@@ -142,11 +142,13 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 focused attach, sumika fires a macOS notification with the name and status —
 never PTY contents. Absence of a report is `unknown`. Adapters fail open.
 
-Claude and Codex adapters live in `contrib/hooks/`. Merge those snippets into
-existing vendor settings; do not replace unrelated hooks. The child inherits
-`SUMIKA_SESSION`. `sumika hook-report` maps Stop to `idle` and permission /
-approval events to `blocked`, then calls `report`. Unknown payloads and
-missing names exit 0 and leave status unchanged.
+Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
+vendor settings; do not replace unrelated hooks. The child inherits
+`SUMIKA_SESSION`. `sumika hook-report` maps Stop / turn-done to `idle` and
+permission / approval events to `blocked`, then calls `report`. Kiro has no
+approval event. Pi idle needs the in-tree extension; Pi blocked needs
+`permissions:ask`. Unknown payloads and missing names exit 0 and leave
+status unchanged.
 
 On macOS the daily-driver owner is a launchd user agent
 (`contrib/launchd/com.sumika.daemon.plist`). If the default socket is missing,

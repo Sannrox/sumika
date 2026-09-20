@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "stop": [
+      {
+        "command": "sumika hook-report"
+      }
+    ]
+  }
+}

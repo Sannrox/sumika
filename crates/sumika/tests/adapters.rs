@@ -199,6 +199,63 @@ async fn codex_notify_turn_complete_and_approval() {
 }
 
 #[tokio::test]
+async fn grok_stop_sets_idle_and_notification_sets_blocked() {
+    let harness = Harness::start().await;
+    harness.start_session("grok");
+    assert!(
+        harness
+            .hook_report("grok", r#"{"hookEventName":"Stop","sessionId":"g1"}"#)
+            .status
+            .success()
+    );
+    assert_eq!(harness.session("grok").await.status, Status::Idle);
+    assert!(
+        harness
+            .hook_report("grok", r#"{"hookEventName":"Notification"}"#)
+            .status
+            .success()
+    );
+    assert_eq!(harness.session("grok").await.status, Status::Blocked);
+}
+
+#[tokio::test]
+async fn kiro_stop_sets_idle_and_approval_stays_unknown() {
+    let harness = Harness::start().await;
+    harness.start_session("kiro");
+    let first = harness.session("kiro").await;
+    assert!(
+        harness
+            .hook_report("kiro", r#"{"hook_event_name":"PreToolUse"}"#)
+            .status
+            .success()
+    );
+    let after_unknown = harness.session("kiro").await;
+    assert_eq!(after_unknown.status, Status::Running);
+    assert_eq!(after_unknown.pid, first.pid);
+    assert!(!harness.notify.exists());
+    assert!(
+        harness
+            .hook_report("kiro", r#"{"hook_event_name":"stop"}"#)
+            .status
+            .success()
+    );
+    assert_eq!(harness.session("kiro").await.status, Status::Idle);
+}
+
+#[tokio::test]
+async fn pi_agent_end_sets_idle_when_extension_payload_arrives() {
+    let harness = Harness::start().await;
+    harness.start_session("pi");
+    assert!(
+        harness
+            .hook_report("pi", r#"{"type":"agent_settled"}"#)
+            .status
+            .success()
+    );
+    assert_eq!(harness.session("pi").await.status, Status::Idle);
+}
+
+#[tokio::test]
 async fn broken_hook_leaves_unknown_and_keeps_the_child() {
     let harness = Harness::start().await;
     harness.start_session("claude");
@@ -230,4 +287,24 @@ fn snippets_are_merge_fragments() {
     assert!(hooks.contains_key("Stop"));
     assert!(hooks.contains_key("PermissionRequest"));
     assert_eq!(hooks.len(), 2);
+
+    let grok: serde_json::Value =
+        serde_json::from_str(include_str!("../../../contrib/hooks/grok.hooks.json")).unwrap();
+    let hooks = grok["hooks"].as_object().unwrap();
+    assert!(hooks.contains_key("Stop"));
+    assert!(hooks.contains_key("Notification"));
+    assert!(!hooks.contains_key("PermissionRequest"));
+
+    let kiro_cli: serde_json::Value =
+        serde_json::from_str(include_str!("../../../contrib/hooks/kiro-cli.hooks.json")).unwrap();
+    assert!(kiro_cli["hooks"].get("stop").is_some());
+    assert!(kiro_cli["hooks"].get("PermissionRequest").is_none());
+
+    let kiro: serde_json::Value =
+        serde_json::from_str(include_str!("../../../contrib/hooks/kiro.hooks.json")).unwrap();
+    assert_eq!(kiro["hooks"][0]["trigger"], "Agent Stop");
+    let pi = include_str!("../../../contrib/hooks/pi/sumika-report.ts");
+    assert!(pi.contains("agent_end"));
+    assert!(pi.contains("agent_settled"));
+    assert!(pi.contains("permissions:ask"));
 }

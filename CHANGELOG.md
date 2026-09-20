@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Grok, Kiro, and Pi report adapters. Grok Stop → idle, Notification →
+  blocked. Kiro Stop / Agent Stop → idle only. Pi `agent_end` /
+  `agent_settled` → idle; `permissions:ask` only when that extension is
+  present.
 - Claude and Codex report adapters (`contrib/hooks/`, `sumika hook-report`).
   Merge into existing vendor settings. Stop → idle; permission/approval →
   blocked. Broken payloads leave status unchanged and keep the child.
