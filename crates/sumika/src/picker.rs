@@ -10,6 +10,7 @@ pub enum Input {
     Restart,
     Quit,
     Jump(char),
+    Help,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub struct Picker {
     rows: Vec<SessionInfo>,
     selected: usize,
     jumps: HashMap<char, String>,
+    help_open: bool,
 }
 
 impl Picker {
@@ -33,7 +35,16 @@ impl Picker {
             rows,
             selected: 0,
             jumps,
+            help_open: false,
         }
+    }
+
+    pub fn jumps(&self) -> &HashMap<char, String> {
+        &self.jumps
+    }
+
+    pub fn help_open(&self) -> bool {
+        self.help_open
     }
 
     pub fn rows(&self) -> &[SessionInfo] {
@@ -61,7 +72,25 @@ impl Picker {
     }
 
     pub fn handle(&mut self, input: Input) -> Action {
+        if self.help_open {
+            match input {
+                Input::Help | Input::Quit => {
+                    self.help_open = false;
+                    Action::None
+                }
+                _ => Action::None,
+            }
+        } else {
+            self.handle_list(input)
+        }
+    }
+
+    fn handle_list(&mut self, input: Input) -> Action {
         match input {
+            Input::Help => {
+                self.help_open = true;
+                Action::None
+            }
             Input::Quit => Action::Quit,
             Input::Down => {
                 self.move_sel(1);
@@ -102,6 +131,27 @@ impl Picker {
         let n = self.rows.len() as isize;
         self.selected = (self.selected as isize + delta).rem_euclid(n) as usize;
     }
+}
+
+pub fn help_lines(jumps: &HashMap<char, String>, detach: &str) -> Vec<String> {
+    let mut lines = vec![
+        "j/k     move".into(),
+        "enter   attach".into(),
+        "q       leave picker".into(),
+        "r       restart dead row".into(),
+        "?       toggle this help".into(),
+        format!("{detach:<8} detach (while attached)"),
+        "! · … ? ✗   blocked idle running unknown dead".into(),
+    ];
+    let mut keys: Vec<_> = jumps.iter().collect();
+    keys.sort_by_key(|(key, _)| **key);
+    for (key, name) in keys {
+        if *key == '?' {
+            continue;
+        }
+        lines.push(format!("{key}       jump {name}"));
+    }
+    lines
 }
 
 pub fn glyph(status: Status) -> &'static str {
@@ -200,5 +250,34 @@ mod tests {
             Action::Attach("kiro".into())
         );
         assert_eq!(picker.selected().unwrap().name, "kiro");
+    }
+
+    #[test]
+    fn question_mark_opens_help_and_q_closes_it_without_quit() {
+        let mut picker = Picker::new(vec![session("kiro", Status::Running)], HashMap::new());
+        assert!(!picker.help_open());
+        assert_eq!(picker.handle(Input::Help), Action::None);
+        assert!(picker.help_open());
+        assert_eq!(picker.handle(Input::Attach), Action::None);
+        assert!(picker.help_open());
+        assert_eq!(picker.handle(Input::Quit), Action::None);
+        assert!(!picker.help_open());
+        assert_eq!(picker.handle(Input::Quit), Action::Quit);
+    }
+
+    #[test]
+    fn help_lists_jumps_and_detach() {
+        let mut jumps = HashMap::new();
+        jumps.insert('k', "kiro".into());
+        let text = help_lines(&jumps, "C-\\ then C-b").join("\n");
+        assert!(text.contains("j/k"));
+        assert!(text.contains("enter"));
+        assert!(text.contains("k       jump kiro"));
+        assert!(text.contains("C-\\ then C-b"));
+        assert!(text.contains("?       toggle this help"));
+        let mut reserved = HashMap::new();
+        reserved.insert('?', "nope".into());
+        let reserved_text = help_lines(&reserved, "C-\\ then C-b").join("\n");
+        assert!(!reserved_text.contains("jump nope"), "{reserved_text}");
     }
 }

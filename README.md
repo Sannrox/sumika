@@ -122,10 +122,12 @@ keys to move in that case.
 Bare `sumika` opens a full-screen picker of daemon sessions. `j`/`k` move,
 Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
 children. Configured `key` values jump. `r` on a dead row starts that session
-from config. While attached, the client intercepts a two-key detach chord
-(default `Ctrl-\` then `Ctrl-b`) and returns to the picker; those bytes are
-not sent to the child. Override with `detach_chord = ["C-\\", "C-b"]` in
-config. Closing the window still leaves the child.
+from config. `?` opens a help page of these shortcuts (again to close).
+`sumika keys` prints the same list. While attached, the client intercepts a
+two-key detach chord (default `Ctrl-\` then `Ctrl-b`) and returns to the
+picker; those bytes are not sent to the child. Override with
+`detach_chord = ["C-\\", "C-b"]` in config. Closing the window still leaves
+the child. `?` is reserved and is not a jump key.
 
 ```text
 sumika [--sock PATH] [--config PATH] [COMMAND]
@@ -134,6 +136,7 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | Command | Purpose |
 | --- | --- |
 | *(none)* | Open the session picker |
+| `keys` | Print picker and attach shortcuts |
 | `daemon` | Run the PTY supervisor |
 | `ping` | Check that the daemon is reachable |
 | `start NAME [-- ARGV...]` | Spawn a named session (argv from config when omitted) |

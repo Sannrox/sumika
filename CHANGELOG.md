@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Picker help page (`?`) and `sumika keys` listing move, attach, quit,
+  restart, jump keys, glyphs, and the detach chord.
 - Operator daemon log (`$XDG_STATE_HOME/sumika/daemon.log`, override
   `SUMIKA_LOG` / `SUMIKA_STATE_DIR`): listen, start, steal, reap, report,
   notify, errors. Never PTY contents.
