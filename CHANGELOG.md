@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bounded line-ring scrollback on attach (10k lines), replayed before the
+  last VT frame. Detached output still does not block the child.
 - Last-frame snapshot on attach: the client first sees the last VT frame the
   daemon kept (`termwiz`). Detached output does not block the child.
 - Grok, Kiro, and Pi report adapters. Grok Stop → idle, Notification →
