@@ -4,7 +4,7 @@ Documentation=https://github.com/Sannrox/sumika
 
 [Service]
 Type=simple
-ExecStart=sumika daemon
+ExecStart=SUMIKA_BIN daemon
 Restart=on-failure
 
 [Install]

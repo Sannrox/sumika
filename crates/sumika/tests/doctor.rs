@@ -82,6 +82,7 @@ async fn doctor_json_is_nonzero_when_daemon_is_down() {
     assert_eq!(report["reachable"], false);
     assert!(report["socket"].as_str().unwrap().ends_with("missing.sock"));
     assert!(report.get("launchd_loaded").is_some());
+    assert!(report.get("systemd_user_loaded").is_some());
     assert!(report.get("config").is_some());
     assert_eq!(report["sessions"], serde_json::json!([]));
 }

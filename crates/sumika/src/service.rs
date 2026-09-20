@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "macos")]
 use std::process::Command;
 
 use serde::Serialize;
@@ -17,6 +16,7 @@ pub struct DoctorReport {
     pub socket: String,
     pub reachable: bool,
     pub launchd_loaded: Option<bool>,
+    pub systemd_user_loaded: Option<bool>,
     pub config: String,
     pub sessions: Vec<DoctorSession>,
 }
@@ -32,6 +32,7 @@ impl DoctorReport {
             socket: socket.display().to_string(),
             reachable,
             launchd_loaded: launchd_loaded(),
+            systemd_user_loaded: systemd_user_loaded(),
             config: config.display().to_string(),
             sessions: sessions
                 .into_iter()
@@ -120,6 +121,94 @@ pub fn bootstrap_launchd(plist: &Path) -> Result<(), String> {
     }
 }
 
+pub const SYSTEMD_UNIT: &str = "sumika.service";
+
+pub fn systemd_unit_path() -> Option<PathBuf> {
+    systemd_unit_path_from(
+        std::env::var_os("XDG_CONFIG_HOME"),
+        std::env::var_os("HOME"),
+    )
+}
+
+pub fn systemd_unit_path_from(
+    xdg_config_home: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+) -> Option<PathBuf> {
+    if let Some(dir) = xdg_config_home.filter(|dir| !dir.is_empty()) {
+        return Some(PathBuf::from(dir).join("systemd/user").join(SYSTEMD_UNIT));
+    }
+    let home = home.filter(|dir| !dir.is_empty())?;
+    Some(
+        PathBuf::from(home)
+            .join(".config/systemd/user")
+            .join(SYSTEMD_UNIT),
+    )
+}
+
+pub fn systemd_user_loaded() -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        let status = Command::new("systemctl")
+            .args(["--user", "is-active", SYSTEMD_UNIT])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .ok()?;
+        Some(status.success())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+pub fn install_systemd(bin: &Path) -> Result<PathBuf, String> {
+    let unit_path = systemd_unit_path().ok_or_else(|| "HOME is unset".to_string())?;
+    write_systemd_unit(&unit_path, bin)?;
+    Ok(unit_path)
+}
+
+fn write_systemd_unit(unit_path: &Path, bin: &Path) -> Result<(), String> {
+    if let Some(parent) = unit_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let template = include_str!("../../../contrib/systemd/sumika.service");
+    let body = template.replace("SUMIKA_BIN", &bin.display().to_string());
+    std::fs::write(unit_path, body).map_err(|err| err.to_string())
+}
+
+pub fn enable_systemd() -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let reload = Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|err| err.to_string())?;
+        if !reload.status.success() {
+            return Err(String::from_utf8_lossy(&reload.stderr).trim().to_string());
+        }
+        let status = Command::new("systemctl")
+            .args(["--user", "enable", "--now", SYSTEMD_UNIT])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|err| err.to_string())?;
+        if status.status.success() {
+            return Ok(());
+        }
+        Err(String::from_utf8_lossy(&status.stderr).trim().to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err("systemd --user is only available on Linux".into())
+    }
+}
+
 fn xml_escape(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -142,7 +231,26 @@ mod tests {
     #[test]
     fn systemd_unit_starts_the_daemon() {
         let unit = include_str!("../../../contrib/systemd/sumika.service");
-        assert!(unit.contains("ExecStart=sumika daemon"));
+        assert!(unit.contains("ExecStart=SUMIKA_BIN daemon"));
         assert!(unit.contains("WantedBy=default.target"));
+    }
+
+    #[test]
+    fn systemd_unit_path_prefers_xdg_config_home() {
+        let path = systemd_unit_path_from(Some("/xdg/config".into()), Some("/home/op".into()));
+        assert_eq!(
+            path,
+            Some(PathBuf::from("/xdg/config/systemd/user/sumika.service"))
+        );
+    }
+
+    #[test]
+    fn install_systemd_writes_the_binary() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("systemd/user/sumika.service");
+        write_systemd_unit(&path, Path::new("/opt/sumika/sumika")).expect("write");
+        let body = std::fs::read_to_string(&path).expect("unit");
+        assert!(body.contains("ExecStart=/opt/sumika/sumika daemon"));
+        assert!(body.contains("WantedBy=default.target"));
     }
 }

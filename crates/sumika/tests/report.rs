@@ -140,3 +140,81 @@ async fn report_on_focused_session_does_not_notify() {
     assert!(kiro.focused);
     assert!(!harness.notify.exists());
 }
+
+#[tokio::test]
+async fn unfocused_report_invokes_notify_send() {
+    let dir = TempDir::new().expect("tempdir");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("private tempdir");
+    }
+    let sock = dir.path().join("sumika.sock");
+    let record = dir.path().join("notify-send.log");
+    let helper = dir.path().join("notify-send");
+    std::fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/record_notify.py"),
+        &helper,
+    )
+    .expect("copy notify helper");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod notify helper");
+    }
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_sumika"));
+    let mut daemon = Command::new(&bin)
+        .args(["daemon"])
+        .env("SUMIKA_SOCK", &sock)
+        .env_remove("SUMIKA_NOTIFY_FILE")
+        .env("SUMIKA_NOTIFY_SEND", &helper)
+        .env("SUMIKA_NOTIFY_RECORD", &record)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn daemon");
+    let client = Client::new(&sock);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if client.rpc(&Request::Ping).await.is_ok() {
+            break;
+        }
+        if tokio::time::Instant::now() > deadline {
+            let _ = daemon.kill();
+            panic!("daemon did not become reachable");
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(
+        client
+            .rpc(&Request::Start {
+                name: "kiro".into(),
+                argv: vec!["cat".into()],
+                cwd: None,
+            })
+            .await
+            .unwrap()
+            .ok
+    );
+    assert!(
+        client
+            .rpc(&Request::Report {
+                name: "kiro".into(),
+                status: Status::Blocked,
+            })
+            .await
+            .unwrap()
+            .ok
+    );
+    let body = std::fs::read_to_string(&record).unwrap_or_default();
+    let _ = daemon.kill();
+    let _ = daemon.wait();
+    assert!(
+        body.contains("kiro is blocked"),
+        "notify-send missing body: {body:?}"
+    );
+    assert!(!body.contains("PTY"));
+}
