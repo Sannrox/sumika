@@ -125,11 +125,11 @@ async fn copy_mode_yanks_a_known_line_without_killing() {
     assert!(focused.is_ok(), "attach did not focus");
     {
         let stdin = attach.stdin.as_mut().unwrap();
-        stdin.write_all(&[0x1c, b'y']).unwrap();
+        stdin.write_all(&[0x02, b'y']).unwrap();
         stdin.write_all(b"g").unwrap();
         stdin.write_all(b"y").unwrap();
         stdin.write_all(b"q").unwrap();
-        stdin.write_all(&[0x1c, 0x02]).unwrap();
+        stdin.write_all(&[0x02, b'q']).unwrap();
         stdin.flush().unwrap();
     }
     let output = attach.wait_with_output().unwrap();
