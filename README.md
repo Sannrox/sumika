@@ -131,7 +131,7 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `start NAME [-- ARGV...]` | Spawn a named session (argv from config when omitted) |
 | `start --all` | Start every session in the config |
 | `list [--json]` | List sessions |
-| `attach NAME` | Exclusive attach (steals) |
+| `attach [NAME]` | Exclusive attach (steals). No name uses last-attached. |
 | `kill NAME [--force]` | Kill a session |
 | `doctor [--json]` | Socket, reachability, launchd, config, session pids |
 | `report NAME idle\|blocked\|running` | Hook attention status |
@@ -149,6 +149,11 @@ is the one-shot install. A systemd `--user` unit ships in
 
 `doctor` is non-zero when the daemon is unreachable. It never prints PTY
 contents.
+
+Last-attached name is stored under `$XDG_STATE_HOME/sumika/last` (or
+`~/.local/state/sumika/last`, override `SUMIKA_STATE_DIR`). `sumika attach`
+with no name uses that file. A missing file is a non-zero error; bare
+`sumika` still opens the picker.
 
 `start` takes `--cwd DIR`. Without it, the child's cwd is the config `cwd` if
 present, otherwise the client's current directory. Flags override config.
