@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Persist `resume_hint` from confirmed Stop payloads (`claude`, `grok`,
+  `codex`) and pass the documented flag on restart of a dead session.
+  `kiro-cli`, `pi`, and unknown vendors keep argv unchanged.
 - Detach chord default is `C-b` then `q` (copy mode `C-b` then `y`). `C-\\`
   is no longer the prefix — it is awkward on many keyboard layouts.
 - Picker jump keys require Space first (`spc k`), so `j`/`k` always move.

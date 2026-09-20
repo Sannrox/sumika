@@ -187,6 +187,9 @@ with no name uses that file. A missing file is a non-zero error; bare
 present, otherwise the client's current directory. Flags override config.
 `start` on a live name returns that session and does not spawn a
 second child. Restart is `kill` then `start` after the session is `dead`.
+When a confirmed Stop payload stored a `resume_hint` (`claude`, `grok`,
+`codex`), restart appends that vendor's resume-by-id flag. Other vendors
+keep argv unchanged.
 
 ## What this is not
 

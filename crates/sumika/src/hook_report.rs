@@ -16,6 +16,27 @@ pub fn status_from_payload(payload: &Value) -> Option<Status> {
     idle
 }
 
+pub fn hint_from_payload(payload: &Value, status: Status) -> Option<String> {
+    if status != Status::Idle {
+        return None;
+    }
+    payload
+        .get("session_id")
+        .or_else(|| payload.get("sessionId"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .or_else(env_hint)
+}
+
+fn env_hint() -> Option<String> {
+    std::env::var("GROK_SESSION_ID")
+        .ok()
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty())
+}
+
 fn event_strings(payload: &Value) -> Vec<String> {
     ["type", "hook_event_name", "hookEventName", "trigger"]
         .iter()
@@ -169,5 +190,19 @@ mod tests {
     #[test]
     fn garbage_is_ignored() {
         assert_eq!(status_from_payload(&json!({"nope": true})), None);
+    }
+
+    #[test]
+    fn stop_payload_yields_session_id() {
+        let payload = json!({"hook_event_name": "Stop", "session_id": "abc"});
+        let status = status_from_payload(&payload).unwrap();
+        assert_eq!(hint_from_payload(&payload, status).as_deref(), Some("abc"));
+        let grok = json!({"hookEventName": "Stop", "sessionId": "sid"});
+        assert_eq!(
+            hint_from_payload(&grok, Status::Idle).as_deref(),
+            Some("sid")
+        );
+        let blocked = json!({"hook_event_name": "PermissionRequest", "session_id": "abc"});
+        assert_eq!(hint_from_payload(&blocked, Status::Blocked), None);
     }
 }
