@@ -111,6 +111,7 @@ impl Supervisor {
         let (generation, rx) = {
             let mut attach = session.attach.lock().expect("attach");
             if let Some(prev) = attach.cancel.take() {
+                tracing::info!(session = %session.name, "stolen");
                 let _ = prev.send(());
             }
             attach.generation += 1;
@@ -163,6 +164,7 @@ impl Supervisor {
         let session = match spawn_session(name.clone(), argv, cwd) {
             Ok(session) => session,
             Err(err) => {
+                tracing::error!(session = %name, error = %err, "spawn failed");
                 return Response::err(ErrorCode::SpawnFailed, err.to_string());
             }
         };
@@ -243,6 +245,7 @@ impl Supervisor {
             return Response::err(ErrorCode::Dead, format!("session {name} is dead"));
         }
         *session.status.lock().expect("status") = status;
+        tracing::info!(session = %name, status = %status_label(status), "report");
         let focused = session.attach.lock().expect("attach").cancel.is_some();
         if !focused {
             notify_unfocused(&name, status);
@@ -281,6 +284,7 @@ impl Session {
         if matches!(current.child.try_wait(), Ok(Some(_))) {
             *self.status.lock().expect("status") = Status::Dead;
             *live = None;
+            tracing::info!(session = %self.name, "reaped");
         }
     }
 
@@ -369,6 +373,16 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
     Ok(session)
 }
 
+fn status_label(status: Status) -> &'static str {
+    match status {
+        Status::Idle => "idle",
+        Status::Blocked => "blocked",
+        Status::Running => "running",
+        Status::Dead => "dead",
+        Status::Unknown => "unknown",
+    }
+}
+
 fn notify_unfocused(name: &str, status: Status) {
     let label = match status {
         Status::Idle => "idle",
@@ -376,6 +390,7 @@ fn notify_unfocused(name: &str, status: Status) {
         Status::Running => "running",
         Status::Dead | Status::Unknown => return,
     };
+    tracing::info!(session = %name, status = label, "notify");
     if let Ok(path) = std::env::var("SUMIKA_NOTIFY_FILE")
         && !path.is_empty()
     {

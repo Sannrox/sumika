@@ -1,8 +1,9 @@
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{self, IsTerminal, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
@@ -131,14 +132,88 @@ async fn main() -> ExitCode {
 }
 
 async fn run_daemon(sock: PathBuf) -> anyhow::Result<()> {
+    let log_path = sumika::daemon_log::path();
+    if let Some(parent) = log_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)?;
+        if sumika::daemon_log::default_state_parent() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+            }
+        }
+    }
+    let file = open_daemon_log(&log_path)?;
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
-        .with_writer(io::stderr)
+        .with_ansi(false)
+        .with_writer(DaemonLog(Mutex::new(file)))
         .init();
-    sumika_daemon::run(sock).await
+    match sumika_daemon::run(sock).await {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            tracing::error!(error = %err, "daemon failed");
+            Err(err)
+        }
+    }
+}
+
+fn open_daemon_log(path: &std::path::Path) -> anyhow::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+        opts.custom_flags(libc::O_NOFOLLOW).mode(0o600);
+        let file = opts.open(path)?;
+        let meta = file.metadata()?;
+        anyhow::ensure!(meta.is_file(), "log is not a regular file");
+        anyhow::ensure!(
+            meta.uid() == unsafe { libc::getuid() },
+            "log is not owned by the current user"
+        );
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        Ok(file)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(opts.open(path)?)
+    }
+}
+
+struct DaemonLog(Mutex<File>);
+
+struct Tee<'a> {
+    file: &'a Mutex<File>,
+}
+
+impl io::Write for Tee<'_> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let _ = io::stderr().write_all(buf);
+        let mut file = self.file.lock().unwrap_or_else(|err| err.into_inner());
+        file.write_all(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        let _ = io::stderr().flush();
+        let mut file = self.file.lock().unwrap_or_else(|err| err.into_inner());
+        file.flush()
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for DaemonLog {
+    type Writer = Tee<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        Tee { file: &self.0 }
+    }
 }
 
 async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -> i32 {

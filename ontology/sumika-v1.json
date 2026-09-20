@@ -3,7 +3,7 @@
   "classes": [
     {
       "name": "Sumika",
-      "description": "The habitat: a local daemon and CLI that own interactive PTY sessions so they outlive the terminal window. The terminal is a client, not the process owner."
+      "description": "The habitat: a local daemon and CLI that own interactive PTY sessions so they outlive the terminal window. The daemon writes one operator log without PTY contents. The terminal is a client, not the process owner."
     },
     {
       "name": "Session",

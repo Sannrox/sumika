@@ -75,6 +75,11 @@ Override the socket with `--sock` or `SUMIKA_SOCK`. The default is
 a user-owned `0700` directory (`~/Library/Caches/sumika` on macOS,
 `~/.cache/sumika` elsewhere). The daemon accepts only same-uid peers.
 
+The daemon appends one operator log at `$XDG_STATE_HOME/sumika/daemon.log`
+(else `~/.local/state/sumika/daemon.log`). Override with `SUMIKA_LOG` or put
+it under `SUMIKA_STATE_DIR/daemon.log`. It records listen, start, steal,
+reap, report, notify, and errors. It never writes PTY contents.
+
 Named sessions live in `~/.config/sumika/config.toml` (override `--config` or
 `SUMIKA_CONFIG`, same precedence as the socket: flag, then env, then default).
 `sumika start kiro` uses that record when argv is omitted. `sumika start --all`
