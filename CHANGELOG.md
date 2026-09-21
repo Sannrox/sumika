@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Picker `q` restores a clear primary screen. Enter on a dead row stays in
+  the picker; `r` still restarts.
 - Reattach last frame matches the current PTY size and keeps SGR color.
   A client resize updates the kept VT surface, not only the PTY master.
 - PTY children get `TERM=xterm-256color` at spawn, so a launchd/systemd

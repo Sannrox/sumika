@@ -133,7 +133,8 @@ PATH is Cursor, `argv = ["agent"]` is fine. Do not point argv at Grok's
 ## CLI
 
 Bare `sumika` opens a full-screen picker of daemon sessions. `j`/`k` move,
-Enter attaches (raw PTY, full bleed), `q` leaves the picker and does not kill
+Enter attaches (raw PTY, full bleed; a dead row stays selected), `q` leaves
+the picker with a clear screen and does not kill
 children. Configured `key` values jump after Space (`spc` then the key). `r` on a dead row starts that session
 from config. `?` opens a help page of these shortcuts (again to close).
 `sumika keys` prints the same list. While attached, the client intercepts a
