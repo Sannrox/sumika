@@ -208,6 +208,7 @@ async fn picker_r_starts_dead_kiro_from_config() {
         .sessions
         .unwrap();
     let mut picker = Picker::new(sessions, HashMap::new());
+    assert_eq!(picker.handle(Input::Attach), Action::None);
     assert_eq!(
         picker.handle(Input::Restart),
         Action::Restart("kiro".into())

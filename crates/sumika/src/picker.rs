@@ -123,10 +123,12 @@ impl Picker {
                 self.move_sel(-1);
                 Action::None
             }
-            Input::Attach => self
-                .selected()
-                .map(|session| Action::Attach(session.name.clone()))
-                .unwrap_or(Action::None),
+            Input::Attach => match self.selected() {
+                Some(session) if session.status != Status::Dead => {
+                    Action::Attach(session.name.clone())
+                }
+                _ => Action::None,
+            },
             Input::Restart => match self.selected() {
                 Some(session) if session.status == Status::Dead => {
                     Action::Restart(session.name.clone())
@@ -144,7 +146,11 @@ impl Picker {
         };
         if let Some(index) = self.rows.iter().position(|session| session.name == name) {
             self.selected = index;
-            Action::Attach(name)
+            if self.rows[index].status == Status::Dead {
+                Action::None
+            } else {
+                Action::Attach(name)
+            }
         } else {
             Action::None
         }
@@ -274,6 +280,7 @@ mod tests {
         );
         assert_eq!(picker.handle(Input::Restart), Action::None);
         picker.handle(Input::Down);
+        assert_eq!(picker.handle(Input::Attach), Action::None);
         assert_eq!(
             picker.handle(Input::Restart),
             Action::Restart("kiro".into())
@@ -284,6 +291,27 @@ mod tests {
     fn refresh_can_mark_selected_row_dead() {
         let mut picker = Picker::new(vec![session("kiro", Status::Running)], HashMap::new());
         picker.replace_rows(vec![session("kiro", Status::Dead)]);
+        assert_eq!(picker.handle(Input::Attach), Action::None);
+        assert_eq!(
+            picker.handle(Input::Restart),
+            Action::Restart("kiro".into())
+        );
+    }
+
+    #[test]
+    fn jump_on_a_dead_row_selects_without_attach() {
+        let mut jumps = HashMap::new();
+        jumps.insert('k', "kiro".into());
+        let mut picker = Picker::new(
+            vec![
+                session("claude", Status::Running),
+                session("kiro", Status::Dead),
+            ],
+            jumps,
+        );
+        assert_eq!(picker.handle(Input::Leader), Action::None);
+        assert_eq!(picker.handle(Input::Jump('k')), Action::None);
+        assert_eq!(picker.selected().unwrap().name, "kiro");
         assert_eq!(
             picker.handle(Input::Restart),
             Action::Restart("kiro".into())

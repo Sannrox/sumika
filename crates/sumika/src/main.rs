@@ -7,14 +7,10 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
-use crossterm::cursor::Show;
-use crossterm::event::DisableMouseCapture;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::execute;
-use crossterm::style::ResetColor;
 use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-    size as terminal_size,
+    EnterAlternateScreen, disable_raw_mode, enable_raw_mode, size as terminal_size,
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -25,6 +21,7 @@ use sumika::chord::{Chord, Feed, Matcher, format_chord};
 use sumika::config::{SessionSpec, load, resolve_config_path};
 use sumika::copy::{self, CopyMode};
 use sumika::picker::{Action, Input, Picker, attention_line, glyph, help_lines};
+use sumika::restore::write_client_restore;
 use sumika_ctl::{Client, ClientError};
 use sumika_protocol::{
     EXIT_OK, EXIT_STOLEN, EXIT_UNREACHABLE, EXIT_USAGE, Request, Response, Status,
@@ -453,9 +450,8 @@ impl PickerScreen {
 
 impl Drop for PickerScreen {
     fn drop(&mut self) {
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        let _ = write_client_restore(&mut io::stdout());
         let _ = disable_raw_mode();
-        let _ = io::stdout().flush();
     }
 }
 
@@ -811,14 +807,7 @@ fn ignore_tty_signals() {
 }
 
 fn restore_client_screen() {
-    let _ = execute!(
-        io::stdout(),
-        LeaveAlternateScreen,
-        DisableMouseCapture,
-        Show,
-        ResetColor
-    );
-    let _ = io::stdout().flush();
+    let _ = write_client_restore(&mut io::stdout());
 }
 
 fn load_chord(config: Option<&std::path::Path>) -> Chord {

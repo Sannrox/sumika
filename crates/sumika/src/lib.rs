@@ -5,5 +5,6 @@ pub mod daemon_log;
 pub mod hook_report;
 pub mod last;
 pub mod picker;
+pub mod restore;
 pub mod resume;
 pub mod service;
