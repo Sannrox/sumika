@@ -122,6 +122,94 @@ async fn attach_replays_lines_that_left_the_viewport() {
 }
 
 #[tokio::test]
+async fn reattach_keeps_sgr_and_wide_column_from_last_frame() {
+    let harness = Harness::start().await;
+    let start = harness
+        .client
+        .rpc(&Request::Start {
+            name: "demo".into(),
+            argv: vec![
+                "python3".into(),
+                "-c".into(),
+                "import sys, time\ntime.sleep(0.4)\nsys.stdout.write('\\033[31mRED-MARKER\\033[0m')\nsys.stdout.write('\\033[2;100HCOL100-MARKER')\nsys.stdout.flush()\ntime.sleep(60)".into(),
+            ],
+            cwd: None,
+        })
+        .await
+        .expect("start");
+    assert!(start.ok, "{start:?}");
+    let resized = harness
+        .client
+        .rpc(&Request::Resize {
+            name: "demo".into(),
+            cols: 120,
+            rows: 24,
+        })
+        .await
+        .expect("resize");
+    assert!(resized.ok, "{resized:?}");
+    tokio::time::sleep(Duration::from_millis(700)).await;
+
+    {
+        let (resp, _stream) = harness.client.attach("demo").await.expect("first attach");
+        assert!(resp.ok, "{resp:?}");
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let (resp, mut stream) = harness.client.attach("demo").await.expect("reattach");
+    assert!(resp.ok, "{resp:?}");
+    let mut buf = vec![0u8; 16 * 1024];
+    let n = timeout(Duration::from_secs(2), stream.read(&mut buf))
+        .await
+        .expect("read timeout")
+        .expect("read");
+    let seen = String::from_utf8_lossy(&buf[..n]);
+    assert!(
+        seen.contains("RED-MARKER"),
+        "red marker missing from last frame: {seen:?}"
+    );
+    assert!(
+        seen.contains("\u{1b}[31m") || seen.contains("\u{1b}[0;31m"),
+        "SGR red missing from last frame: {seen:?}"
+    );
+    assert!(
+        seen.contains("COL100-MARKER"),
+        "wide column marker missing from last frame: {seen:?}"
+    );
+    let start = seen.find("COL100-MARKER").expect("marker");
+    let row = seen[..start]
+        .rsplit("\r\n")
+        .next()
+        .unwrap_or(&seen[..start]);
+    let visible = strip_csi(row);
+    assert!(
+        visible.chars().count() >= 99,
+        "COL100-MARKER wrapped into 80 columns: {visible:?}"
+    );
+}
+
+fn strip_csi(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for next in chars.by_ref() {
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+                continue;
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+#[tokio::test]
 async fn stalled_client_does_not_block_the_child() {
     let harness = Harness::start().await;
     let start = harness
