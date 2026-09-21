@@ -169,7 +169,9 @@ not notify. Absence of a report is `unknown`. Adapters fail open.
 
 Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
 vendor settings; do not replace unrelated hooks. The child inherits
-`SUMIKA_SESSION`. `sumika hook-report` maps Stop / turn-done to `idle` and
+`SUMIKA_SESSION` and is given `TERM=xterm-256color` (a PTY default; launchd
+and systemd `--user` do not supply `TERM`). `sumika hook-report` maps Stop /
+turn-done to `idle` and
 permission / approval events to `blocked`, then calls `report`. Kiro has no
 approval event. Cursor `stop` is idle; Cursor has no documented approval
 hook. Pi idle needs the in-tree extension; Pi blocked needs
