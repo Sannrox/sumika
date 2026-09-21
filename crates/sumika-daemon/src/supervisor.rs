@@ -198,6 +198,9 @@ impl Supervisor {
     }
 
     fn resize(&self, name: &str, cols: u16, rows: u16) -> Response {
+        if cols == 0 || rows == 0 {
+            return Response::err(ErrorCode::InvalidRequest, "size must be non-zero");
+        }
         let session = match self.get(name) {
             Some(session) => session,
             None => return unknown(name),
@@ -207,6 +210,8 @@ impl Supervisor {
         let Some(live) = live.as_ref() else {
             return Response::err(ErrorCode::Dead, format!("session {name} is dead"));
         };
+        // Surface first so a SIGWINCH redraw is parsed at the new size.
+        session.frame.resize(cols as usize, rows as usize);
         match live.master.resize(PtySize {
             rows,
             cols,

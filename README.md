@@ -8,7 +8,8 @@ The terminal is the window. Sumika owns the processes.
 
 One chat on screen, full bleed. Closing the terminal does not kill the child.
 Attach is a raw PTY. On attach, the client first sees a bounded line ring
-(on the order of 10k lines) then the last VT frame the daemon kept.
+(on the order of 10k lines) then the last VT frame the daemon kept at the
+current PTY size, including SGR.
 Detached output does not block the child. A second attach steals. Status
 is a hook or `unknown` — never a screen scrape.
 

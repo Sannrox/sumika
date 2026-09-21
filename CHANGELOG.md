@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reattach last frame matches the current PTY size and keeps SGR color.
+  A client resize updates the kept VT surface, not only the PTY master.
 - PTY children get `TERM=xterm-256color` at spawn, so a launchd/systemd
   daemon does not leave agent TUIs without color.
 
