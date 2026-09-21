@@ -15,6 +15,8 @@ const DEFAULT_SIZE: PtySize = PtySize {
     pixel_width: 0,
     pixel_height: 0,
 };
+/// Validated PTY default. Launchd/systemd do not supply TERM.
+const DEFAULT_TERM: &str = "xterm-256color";
 
 #[derive(Clone)]
 pub struct Supervisor {
@@ -330,6 +332,7 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
     }
     cmd.cwd(&cwd);
     cmd.env("SUMIKA_SESSION", &name);
+    cmd.env("TERM", DEFAULT_TERM);
     let child = pair.slave.spawn_command(cmd)?;
     let pid = child.process_id().unwrap_or(0);
     let reader = pair.master.try_clone_reader()?;

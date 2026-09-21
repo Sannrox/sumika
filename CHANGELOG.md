@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- PTY children get `TERM=xterm-256color` at spawn, so a launchd/systemd
+  daemon does not leave agent TUIs without color.
+
 ### Added
 
 - Decision: the picker is not a directory scope. Session uniqueness stays
