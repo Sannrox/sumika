@@ -422,12 +422,12 @@ fn notify_unfocused(name: &str, status: Status) {
     if let Ok(bin) = std::env::var("SUMIKA_NOTIFY_SEND")
         && !bin.is_empty()
     {
-        notify_send(&bin, &body);
+        notify_send(&bin, &body, name, label);
         return;
     }
     #[cfg(target_os = "linux")]
     {
-        notify_send("notify-send", &body);
+        notify_send("notify-send", &body, name, label);
     }
     #[cfg(target_os = "macos")]
     {
@@ -438,6 +438,8 @@ fn notify_unfocused(name: &str, status: Status) {
         );
         let _ = std::process::Command::new("osascript")
             .args(["-e", &script])
+            .env("SUMIKA_NOTIFY_SESSION", name)
+            .env("SUMIKA_NOTIFY_STATUS", label)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -451,9 +453,15 @@ fn desktop_notify_enabled() -> bool {
         .is_some_and(|value| value.trim().eq_ignore_ascii_case("os"))
 }
 
-fn notify_send(bin: &str, body: &str) {
+/// Invoke a desktop notifier for an unfocused session. The session identity
+/// travels in the environment (`SUMIKA_NOTIFY_SESSION` / `SUMIKA_NOTIFY_STATUS`)
+/// so a click action can attach that name (`sumika attach "$SUMIKA_NOTIFY_SESSION"`);
+/// the argument vector stays `(-a sumika sumika BODY)`.
+fn notify_send(bin: &str, body: &str, name: &str, label: &str) {
     let _ = std::process::Command::new(bin)
         .args(["-a", "sumika", "sumika", body])
+        .env("SUMIKA_NOTIFY_SESSION", name)
+        .env("SUMIKA_NOTIFY_STATUS", label)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

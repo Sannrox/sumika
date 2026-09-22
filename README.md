@@ -169,6 +169,19 @@ off unless `SUMIKA_NOTIFY=os` (macOS Notification Center, Linux
 `notify-send`). `SUMIKA_NOTIFY_FILE` is the test sink. Focused sessions do
 not notify. Absence of a report is `unknown`. Adapters fail open.
 
+Clicking a banner focuses that session only through a wired click action.
+The stock banners carry no click callback: on macOS clicking dismisses the
+banner, and on Linux the click does whatever the notification daemon does
+with a plain `notify-send` (no action). To make a click attach the session,
+point `SUMIKA_NOTIFY_SEND` at a notifier with a click action that runs
+`sumika attach "$SUMIKA_NOTIFY_SESSION"` — the daemon exports
+`SUMIKA_NOTIFY_SESSION` and `SUMIKA_NOTIFY_STATUS` (`idle`, `blocked`, or
+`running`) into that hook's environment, keeping the argument vector
+`(-a sumika sumika BODY)`. Without a wired click, open `sumika`: the
+notified session sorts by attention, and `sumika attach NAME` (stealing)
+is always the way back. Clicking is never the only way back, and
+terminal-emulator tab APIs are out of scope.
+
 Vendor adapters live in `contrib/hooks/`. Merge those snippets into existing
 vendor settings; do not replace unrelated hooks. The child inherits
 `SUMIKA_SESSION` and is given `TERM=xterm-256color` (a PTY default; launchd

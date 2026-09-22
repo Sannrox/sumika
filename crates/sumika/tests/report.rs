@@ -220,6 +220,147 @@ async fn unfocused_report_invokes_notify_send() {
     assert!(!body.contains("PTY"));
 }
 
+struct HookDaemon {
+    daemon: Child,
+    client: Client,
+    record: PathBuf,
+    identity: PathBuf,
+    _dir: TempDir,
+}
+
+impl HookDaemon {
+    /// Spawn a daemon with desktop notify enabled through the recording hook.
+    async fn start() -> Self {
+        let dir = TempDir::new().expect("tempdir");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+                .expect("private tempdir");
+        }
+        let sock = dir.path().join("sumika.sock");
+        let record = dir.path().join("notify-send.log");
+        let identity = dir.path().join("notify-env.log");
+        let helper = dir.path().join("notify-send");
+        std::fs::copy(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/record_notify.py"),
+            &helper,
+        )
+        .expect("copy notify helper");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod notify helper");
+        }
+        let bin = PathBuf::from(env!("CARGO_BIN_EXE_sumika"));
+        let daemon = Command::new(&bin)
+            .args(["daemon"])
+            .env("SUMIKA_SOCK", &sock)
+            .env_remove("SUMIKA_NOTIFY_FILE")
+            .env("SUMIKA_NOTIFY", "os")
+            .env("SUMIKA_NOTIFY_SEND", &helper)
+            .env("SUMIKA_NOTIFY_RECORD", &record)
+            .env("SUMIKA_NOTIFY_RECORD_ENV", &identity)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn daemon");
+        let client = Client::new(&sock);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if client.rpc(&Request::Ping).await.is_ok() {
+                break;
+            }
+            if tokio::time::Instant::now() > deadline {
+                panic!("daemon did not become reachable");
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        Self {
+            daemon,
+            client,
+            record,
+            identity,
+            _dir: dir,
+        }
+    }
+
+    async fn start_session(&self, name: &str) {
+        assert!(
+            self.client
+                .rpc(&Request::Start {
+                    name: name.into(),
+                    argv: vec!["cat".into()],
+                    cwd: None,
+                })
+                .await
+                .unwrap()
+                .ok
+        );
+    }
+
+    async fn report(&self, name: &str, status: Status) {
+        assert!(
+            self.client
+                .rpc(&Request::Report {
+                    name: name.into(),
+                    status,
+                })
+                .await
+                .unwrap()
+                .ok
+        );
+    }
+}
+
+impl Drop for HookDaemon {
+    fn drop(&mut self) {
+        let _ = self.daemon.kill();
+        let _ = self.daemon.wait();
+    }
+}
+
+#[tokio::test]
+async fn unfocused_report_passes_session_identity_to_notify_hook() {
+    let hook = HookDaemon::start().await;
+    hook.start_session("kiro").await;
+    hook.report("kiro", Status::Blocked).await;
+    let argv = std::fs::read_to_string(&hook.record).unwrap();
+    assert!(
+        argv.contains("kiro is blocked"),
+        "notify hook missing body: {argv:?}"
+    );
+    let identity = std::fs::read_to_string(&hook.identity).unwrap();
+    assert_eq!(identity, "session\tkiro\nstatus\tblocked\n");
+}
+
+#[tokio::test]
+async fn focused_report_never_invokes_notify_hook() {
+    let hook = HookDaemon::start().await;
+    hook.start_session("kiro").await;
+    let (resp, _stream) = hook.client.attach("kiro").await.unwrap();
+    assert!(resp.ok);
+    hook.report("kiro", Status::Blocked).await;
+    let listed = hook.client.rpc(&Request::List).await.unwrap();
+    let kiro = listed
+        .sessions
+        .unwrap()
+        .into_iter()
+        .find(|session| session.name == "kiro")
+        .unwrap();
+    assert!(kiro.focused);
+    assert!(
+        !hook.record.exists(),
+        "notify hook fired for a focused session"
+    );
+    assert!(
+        !hook.identity.exists(),
+        "notify identity recorded for a focused session"
+    );
+}
+
 #[tokio::test]
 async fn unfocused_report_skips_desktop_notify_by_default() {
     let dir = TempDir::new().expect("tempdir");
