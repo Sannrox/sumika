@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Picker attention: blocked rows sort first, a status line names who needs
   you (`kiro !  cursor ·`). Desktop banners are off unless `SUMIKA_NOTIFY=os`.
   `SUMIKA_NOTIFY_FILE` remains the test sink.
+- Notification click-to-focus contract: the desktop-notify hook
+  (`SUMIKA_NOTIFY_SEND`) receives `SUMIKA_NOTIFY_SESSION` and
+  `SUMIKA_NOTIFY_STATUS` in its environment, so a wired click action can run
+  `sumika attach "$SUMIKA_NOTIFY_SESSION"`. Stock macOS/Linux banners carry
+  no click callback; the click behavior is documented in the README.
+  Focused sessions still never notify.
 - Cursor CLI sample session (`cursor-agent`) and report adapter
   (`contrib/hooks/cursor.hooks.json`). `stop` → idle. Approval stays
   unknown. `agent` on PATH may be Grok; prefer `cursor-agent`.
