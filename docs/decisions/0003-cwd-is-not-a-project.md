@@ -1,6 +1,6 @@
 # cwd is not a project
 
-- Status: accepted
+- Status: superseded by [0004-project-is-a-grouping-key.md](0004-project-is-a-grouping-key.md)
 - Date: 2026-09-20
 - Source: [Issue #50](https://github.com/Sannrox/sumika/issues/50)
 - Related: [Issue #24](https://github.com/Sannrox/sumika/issues/24), [Issue #2](https://github.com/Sannrox/sumika/issues/2)
