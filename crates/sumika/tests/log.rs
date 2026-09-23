@@ -80,6 +80,7 @@ async fn operator_log_records_lifecycle_without_pty_bytes() {
                 format!("print({marker:?}, flush=True); import time; time.sleep(60)"),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");

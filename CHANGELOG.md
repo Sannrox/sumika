@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Picker attention: blocked rows sort first, a status line names who needs
   you (`kiro !  cursor ·`). Desktop banners are off unless `SUMIKA_NOTIFY=os`.
   `SUMIKA_NOTIFY_FILE` remains the test sink.
+- Session `project` plumbing (ADR-0004): optional `project` on config
+  recipes, `start --project NAME` override (flag wins, then recipe), carried
+  on `Request::Start`/`SessionInfo`, shown in `list` text (blank when absent)
+  and `--json` (key absent when unset). Picker grouping is a follow-up.
 - Notification click-to-focus contract: the desktop-notify hook
   (`SUMIKA_NOTIFY_SEND`) receives `SUMIKA_NOTIFY_SESSION` and
   `SUMIKA_NOTIFY_STATUS` in its environment, so a wired click action can run

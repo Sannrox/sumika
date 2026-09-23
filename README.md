@@ -153,7 +153,7 @@ sumika [--sock PATH] [--config PATH] [COMMAND]
 | `keys` | Print picker and attach shortcuts |
 | `daemon` | Run the PTY supervisor |
 | `ping` | Check that the daemon is reachable |
-| `start NAME [-- ARGV...]` | Spawn a named session (argv from config when omitted) |
+| `start NAME [--project NAME] [-- ARGV...]` | Spawn a named session (argv from config when omitted; `--project` wins, else the recipe `project`) |
 | `start --all` | Start every session in the config |
 | `list [--json]` | List sessions |
 | `attach [NAME]` | Exclusive attach (steals). No name uses last-attached. |

@@ -63,6 +63,7 @@ struct Session {
     name: String,
     argv: Vec<String>,
     cwd: PathBuf,
+    project: Option<String>,
     pid: AtomicU32,
     status: Mutex<Status>,
     attach: Mutex<AttachState>,
@@ -81,7 +82,12 @@ impl Supervisor {
     pub fn dispatch(&self, request: Request) -> Response {
         match request {
             Request::Ping => Response::ok(),
-            Request::Start { name, argv, cwd } => self.start(name, argv, cwd),
+            Request::Start {
+                name,
+                argv,
+                cwd,
+                project,
+            } => self.start(name, argv, cwd, project),
             Request::List => self.list(),
             Request::Resize { name, cols, rows } => self.resize(&name, cols, rows),
             Request::Kill { name, force } => self.kill(&name, force),
@@ -133,13 +139,20 @@ impl Supervisor {
         })
     }
 
-    fn start(&self, name: String, argv: Vec<String>, cwd: Option<String>) -> Response {
+    fn start(
+        &self,
+        name: String,
+        argv: Vec<String>,
+        cwd: Option<String>,
+        project: Option<String>,
+    ) -> Response {
         if !valid_name(&name) {
             return Response::err(ErrorCode::InvalidRequest, "invalid session name");
         }
         if argv.is_empty() {
             return Response::err(ErrorCode::InvalidRequest, "argv is empty");
         }
+        let project = project.filter(|project| !project.is_empty());
         let cwd = match cwd {
             Some(path) => PathBuf::from(path),
             None => match std::env::current_dir() {
@@ -164,7 +177,7 @@ impl Supervisor {
                 }
             }
         }
-        let session = match spawn_session(name.clone(), argv, cwd) {
+        let session = match spawn_session(name.clone(), argv, cwd, project) {
             Ok(session) => session,
             Err(err) => {
                 tracing::error!(session = %name, error = %err, "spawn failed");
@@ -284,6 +297,7 @@ impl Session {
             name: self.name.clone(),
             argv: self.argv.clone(),
             cwd: self.cwd.display().to_string(),
+            project: self.project.clone(),
             status,
             pid: if status == Status::Dead || pid == 0 {
                 None
@@ -328,7 +342,12 @@ fn existing_kill_new(session: &Session) {
     session.reap();
 }
 
-fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Result<Arc<Session>> {
+fn spawn_session(
+    name: String,
+    argv: Vec<String>,
+    cwd: PathBuf,
+    project: Option<String>,
+) -> anyhow::Result<Arc<Session>> {
     let pty = native_pty_system();
     let pair = pty.openpty(DEFAULT_SIZE)?;
     let mut cmd = CommandBuilder::new(&argv[0]);
@@ -352,6 +371,7 @@ fn spawn_session(name: String, argv: Vec<String>, cwd: PathBuf) -> anyhow::Resul
         name: name.clone(),
         argv,
         cwd,
+        project,
         pid: AtomicU32::new(pid),
         status: Mutex::new(Status::Running),
         attach: Mutex::new(AttachState {

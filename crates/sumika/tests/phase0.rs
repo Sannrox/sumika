@@ -72,6 +72,7 @@ async fn cat_survives_detach_and_reattach() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");
@@ -118,6 +119,7 @@ async fn second_attach_steals_the_first() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();
@@ -147,6 +149,7 @@ async fn resize_reaches_the_child() {
             name: "size".into(),
             argv: vec!["python3".into(), script.display().to_string()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();
@@ -188,6 +191,7 @@ async fn start_replaces_a_dead_session() {
             name: "demo".into(),
             argv: vec!["true".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();
@@ -216,6 +220,7 @@ async fn start_replaces_a_dead_session() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();
@@ -235,6 +240,7 @@ async fn start_rejects_missing_cwd() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: Some("/no/such/sumika-cwd".into()),
+            project: None,
         })
         .await
         .unwrap();
@@ -281,6 +287,7 @@ async fn child_exit_marks_session_dead_without_zombie() {
             name: "demo".into(),
             argv: vec!["true".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();
@@ -318,6 +325,7 @@ async fn kill_reaps_the_child() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();

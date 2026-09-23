@@ -73,6 +73,7 @@ async fn attach_replays_last_frame_before_new_input() {
                 format!("print({marker:?}, flush=True); import time; time.sleep(60)"),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");
@@ -106,6 +107,7 @@ async fn attach_replays_lines_that_left_the_viewport() {
                 "import time\nprint('SCROLL-EARLY-UNIQUE', flush=True)\nfor i in range(40):\n    print(f'SCROLL-{i:03}-LINE', flush=True)\nprint('SCROLL-LATE-UNIQUE', flush=True)\ntime.sleep(60)".into(),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");
@@ -134,6 +136,7 @@ async fn reattach_keeps_sgr_and_wide_column_from_last_frame() {
                 "import sys, time\ntime.sleep(0.4)\nsys.stdout.write('\\033[31mRED-MARKER\\033[0m')\nsys.stdout.write('\\033[2;100HCOL100-MARKER')\nsys.stdout.flush()\ntime.sleep(60)".into(),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");
@@ -222,6 +225,7 @@ async fn stalled_client_does_not_block_the_child() {
                 "import time\nprint('STALL-A-UNIQUE', flush=True)\ntime.sleep(0.2)\nfor i in range(200):\n    print(f'pad-{i}', flush=True)\nprint('STALL-B-UNIQUE', flush=True)\ntime.sleep(60)".into(),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");

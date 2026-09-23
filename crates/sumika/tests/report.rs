@@ -195,6 +195,7 @@ async fn unfocused_report_invokes_notify_send() {
                 name: "kiro".into(),
                 argv: vec!["cat".into()],
                 cwd: None,
+                project: None,
             })
             .await
             .unwrap()
@@ -294,6 +295,7 @@ impl HookDaemon {
                     name: name.into(),
                     argv: vec!["cat".into()],
                     cwd: None,
+                    project: None,
                 })
                 .await
                 .unwrap()
@@ -415,6 +417,7 @@ async fn unfocused_report_skips_desktop_notify_by_default() {
                 name: "kiro".into(),
                 argv: vec!["cat".into()],
                 cwd: None,
+                project: None,
             })
             .await
             .unwrap()
