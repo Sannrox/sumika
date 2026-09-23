@@ -76,6 +76,7 @@ async fn start_term_child(client: &Client, name: &str) {
                 "printf 'TERM=%s\\n' \"$TERM\"; sleep 60".into(),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");

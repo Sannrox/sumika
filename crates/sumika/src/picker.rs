@@ -235,6 +235,7 @@ mod tests {
             name: name.into(),
             argv: vec!["cat".into()],
             cwd: "/tmp".into(),
+            project: None,
             status,
             pid: None,
             focused: false,

@@ -78,6 +78,7 @@ async fn copy_mode_yanks_a_known_line_without_killing() {
                 ),
             ],
             cwd: None,
+            project: None,
         })
         .await
         .expect("start");
@@ -176,6 +177,7 @@ async fn copy_mode_does_not_change_steal() {
             name: "demo".into(),
             argv: vec!["cat".into()],
             cwd: None,
+            project: None,
         })
         .await
         .unwrap();

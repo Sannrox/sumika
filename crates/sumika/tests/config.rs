@@ -47,6 +47,7 @@ name = "kiro"
 argv = ["cat"]
 cwd = "{}"
 key = "k"
+project = "habitat"
 
 [[sessions]]
 name = "pi"
@@ -186,6 +187,91 @@ async fn start_live_name_does_not_spawn_a_second_child() {
     let listed = harness.list_sessions();
     assert_eq!(listed.len(), 1);
     assert_eq!(session(&listed, "kiro").pid, first_pid);
+}
+
+fn list_text(harness: &Harness) -> String {
+    let output = harness.run(&["list"]);
+    assert!(
+        output.status.success(),
+        "list failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn list_json_value(harness: &Harness) -> serde_json::Value {
+    let output = harness.run(&["list", "--json"]);
+    assert!(output.status.success());
+    serde_json::from_slice(&output.stdout).expect("list --json shape")
+}
+
+fn json_session<'a>(value: &'a serde_json::Value, name: &str) -> &'a serde_json::Value {
+    value["sessions"]
+        .as_array()
+        .expect("sessions array")
+        .iter()
+        .find(|session| session["name"] == name)
+        .unwrap_or_else(|| panic!("missing session {name}"))
+}
+
+#[tokio::test]
+async fn recipe_project_surfaces_in_list_text_and_json() {
+    let harness = Harness::start().await;
+    assert!(harness.run(&["start", "kiro"]).status.success());
+    assert!(harness.run(&["start", "claude"]).status.success());
+
+    let kiro = session(&harness.list_sessions(), "kiro").clone();
+    assert_eq!(kiro.project.as_deref(), Some("habitat"));
+    let claude = session(&harness.list_sessions(), "claude").clone();
+    assert_eq!(claude.project, None);
+
+    let text = list_text(&harness);
+    let kiro_line = text
+        .lines()
+        .find(|line| line.starts_with("kiro\t"))
+        .expect("kiro list line");
+    assert_eq!(kiro_line.split('\t').count(), 5);
+    assert!(kiro_line.ends_with("\thabitat"), "line: {kiro_line:?}");
+    let claude_line = text
+        .lines()
+        .find(|line| line.starts_with("claude\t"))
+        .expect("claude list line");
+    assert!(claude_line.ends_with('\t'), "line: {claude_line:?}");
+
+    let value = list_json_value(&harness);
+    assert_eq!(json_session(&value, "kiro")["project"], "habitat");
+    assert!(
+        json_session(&value, "claude").get("project").is_none(),
+        "project must be absent, not null"
+    );
+}
+
+#[tokio::test]
+async fn project_flag_overrides_recipe_project() {
+    let harness = Harness::start().await;
+    let output = harness.run(&["start", "kiro", "--project", "override"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        session(&harness.list_sessions(), "kiro").project.as_deref(),
+        Some("override")
+    );
+}
+
+#[tokio::test]
+async fn project_flag_sets_project_without_recipe() {
+    let harness = Harness::start().await;
+    let output = harness.run(&["start", "grok", "--project", "fresh"]);
+    assert!(output.status.success());
+    assert_eq!(
+        session(&harness.list_sessions(), "grok").project.as_deref(),
+        Some("fresh")
+    );
+    let all = harness.run(&["start", "--all", "--project", "x"]);
+    assert!(!all.status.success(), "start --all must reject --project");
 }
 
 #[tokio::test]

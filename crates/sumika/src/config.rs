@@ -23,6 +23,8 @@ pub struct SessionSpec {
     pub cwd: Option<String>,
     #[serde(default)]
     pub key: Option<String>,
+    #[serde(default)]
+    pub project: Option<String>,
 }
 
 #[derive(Debug)]
@@ -138,6 +140,12 @@ impl Config {
                     session.name
                 )));
             }
+            if session.project.as_deref().is_some_and(str::is_empty) {
+                return Err(ConfigError::Invalid(format!(
+                    "session {} has empty project",
+                    session.name
+                )));
+            }
         }
         if self.detach_chord.is_some() {
             self.detach_chord()?;
@@ -159,6 +167,7 @@ name = "kiro"
 argv = ["kiro-cli"]
 cwd = "/tmp/kiro"
 key = "k"
+project = "habitat"
 
 [[sessions]]
 name = "claude"
@@ -171,6 +180,7 @@ argv = ["claude"]
         assert_eq!(kiro.argv, ["kiro-cli"]);
         assert_eq!(kiro.cwd.as_deref(), Some("/tmp/kiro"));
         assert_eq!(kiro.key.as_deref(), Some("k"));
+        assert_eq!(kiro.project.as_deref(), Some("habitat"));
         assert!(config.lookup("missing").is_none());
     }
 

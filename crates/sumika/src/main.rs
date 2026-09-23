@@ -55,6 +55,8 @@ enum Command {
         all: bool,
         #[arg(long)]
         cwd: Option<PathBuf>,
+        #[arg(short = 'p', long)]
+        project: Option<String>,
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         argv: Vec<String>,
     },
@@ -232,8 +234,9 @@ async fn run_client(client: Client, config: Option<PathBuf>, command: Command) -
             name,
             all,
             cwd,
+            project,
             argv,
-        } => start_command(&client, config, name, all, cwd, argv).await,
+        } => start_command(&client, config, name, all, cwd, project, argv).await,
         Command::List { json } => print_rpc(&client, &Request::List, json).await,
         Command::Attach { name } => {
             let name = match name {
@@ -580,12 +583,13 @@ async fn restart_session(
     config_path: &std::path::Path,
     name: &str,
 ) -> Result<(), String> {
-    let spec = resolve_start(config_path, name, None, Vec::new())?;
+    let spec = resolve_start(config_path, name, None, None, Vec::new())?;
     let response = client
         .rpc(&Request::Start {
             name: name.to_string(),
             argv: with_resume(name, spec.argv),
             cwd: spec.cwd,
+            project: spec.project,
         })
         .await
         .map_err(|err| err.to_string())?;
@@ -611,12 +615,17 @@ async fn start_command(
     name: Option<String>,
     all: bool,
     cwd: Option<PathBuf>,
+    project: Option<String>,
     argv: Vec<String>,
 ) -> i32 {
     let config_path = resolve_config_path(config);
     if all {
         if !argv.is_empty() {
             eprintln!("start --all does not take argv");
+            return EXIT_USAGE;
+        }
+        if project.is_some() {
+            eprintln!("start --all does not take --project");
             return EXIT_USAGE;
         }
         return start_all(client, &config_path, cwd).await;
@@ -628,7 +637,7 @@ async fn start_command(
             return EXIT_USAGE;
         }
     };
-    let spec = match resolve_start(&config_path, &name, cwd, argv) {
+    let spec = match resolve_start(&config_path, &name, cwd, project, argv) {
         Ok(spec) => spec,
         Err(err) => {
             eprintln!("{err}");
@@ -641,6 +650,7 @@ async fn start_command(
             name: name.clone(),
             argv: with_resume(&name, spec.argv),
             cwd: spec.cwd,
+            project: spec.project,
         },
         false,
     )
@@ -657,7 +667,7 @@ async fn start_all(client: &Client, config_path: &std::path::Path, cwd: Option<P
     };
     let mut code = EXIT_OK;
     for session in config.sessions {
-        let spec = match apply_start(Some(&session), cwd.clone(), Vec::new()) {
+        let spec = match apply_start(Some(&session), cwd.clone(), None, Vec::new()) {
             Ok(spec) => spec,
             Err(err) => {
                 eprintln!("{err}");
@@ -670,6 +680,7 @@ async fn start_all(client: &Client, config_path: &std::path::Path, cwd: Option<P
                 name: session.name.clone(),
                 argv: with_resume(&session.name, spec.argv),
                 cwd: spec.cwd,
+                project: spec.project,
             },
             false,
         )
@@ -684,15 +695,17 @@ async fn start_all(client: &Client, config_path: &std::path::Path, cwd: Option<P
 struct ResolvedStart {
     argv: Vec<String>,
     cwd: Option<String>,
+    project: Option<String>,
 }
 
 fn resolve_start(
     config_path: &std::path::Path,
     name: &str,
     cwd: Option<PathBuf>,
+    project: Option<String>,
     argv: Vec<String>,
 ) -> Result<ResolvedStart, String> {
-    let needs_config = argv.is_empty() || cwd.is_none();
+    let needs_config = argv.is_empty() || cwd.is_none() || project.is_none();
     let loaded = if needs_config {
         match load(config_path) {
             Ok(config) => Some(config),
@@ -706,12 +719,13 @@ fn resolve_start(
     if argv.is_empty() && spec.is_none() {
         return Err(format!("no configured session named {name}"));
     }
-    apply_start(spec, cwd, argv)
+    apply_start(spec, cwd, project, argv)
 }
 
 fn apply_start(
     spec: Option<&SessionSpec>,
     cwd: Option<PathBuf>,
+    project: Option<String>,
     argv: Vec<String>,
 ) -> Result<ResolvedStart, String> {
     let argv = if argv.is_empty() {
@@ -730,7 +744,13 @@ fn apply_start(
             None => Some(resolve_cwd(None).map_err(|err| err.to_string())?),
         },
     };
-    Ok(ResolvedStart { argv, cwd })
+    let project = match project.filter(|project| !project.is_empty()) {
+        Some(project) => Some(project),
+        None => spec
+            .and_then(|session| session.project.clone())
+            .filter(|project| !project.is_empty()),
+    };
+    Ok(ResolvedStart { argv, cwd, project })
 }
 
 async fn print_rpc(client: &Client, request: &Request, json: bool) -> i32 {
@@ -760,11 +780,12 @@ async fn print_rpc(client: &Client, request: &Request, json: bool) -> i32 {
                         sumika_protocol::Status::Unknown => "unknown",
                     };
                     println!(
-                        "{}\t{}\t{}\t{}",
+                        "{}\t{}\t{}\t{}\t{}",
                         session.name,
                         status,
                         pid,
-                        session.argv.join(" ")
+                        session.argv.join(" "),
+                        session.project.as_deref().unwrap_or("")
                     );
                 }
             } else if let Some(session) = &response.session {

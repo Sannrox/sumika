@@ -26,6 +26,8 @@ pub struct SessionInfo {
     pub name: String,
     pub argv: Vec<String>,
     pub cwd: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
     pub status: Status,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
@@ -41,6 +43,8 @@ pub enum Request {
         argv: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cwd: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        project: Option<String>,
     },
     List,
     Attach {
@@ -298,12 +302,41 @@ mod tests {
             name: "demo".into(),
             argv: vec!["bash".into()],
             cwd: None,
+            project: None,
         };
         let value = serde_json::to_value(&req).unwrap();
         assert_eq!(value["op"], "start");
         assert_eq!(value["name"], "demo");
         assert_eq!(value["argv"][0], "bash");
         assert!(value.get("cwd").is_none());
+        assert!(value.get("project").is_none());
+    }
+
+    #[test]
+    fn start_request_carries_project_when_set() {
+        let req = Request::Start {
+            name: "demo".into(),
+            argv: vec!["bash".into()],
+            cwd: None,
+            project: Some("habitat".into()),
+        };
+        let value = serde_json::to_value(&req).unwrap();
+        assert_eq!(value["project"], "habitat");
+        let decoded: Request = serde_json::from_value(value).unwrap();
+        assert_eq!(req, decoded);
+    }
+
+    #[test]
+    fn session_info_without_project_parses() {
+        let info: SessionInfo = serde_json::from_value(serde_json::json!({
+            "name": "demo",
+            "argv": ["bash"],
+            "cwd": "/tmp",
+            "status": "running",
+            "focused": false,
+        }))
+        .unwrap();
+        assert_eq!(info.project, None);
     }
 
     #[test]
